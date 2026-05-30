@@ -1,0 +1,330 @@
+import asyncio
+import random
+from pathlib import Path
+
+import aiosqlite
+from dotenv import load_dotenv
+from twitchAPI.chat import Chat, ChatCommand, ChatMessage, EventData
+from twitchAPI.eventsub.websocket import EventSubWebsocket
+from twitchAPI.helper import first
+from twitchAPI.oauth import UserAuthenticationStorageHelper, UserAuthenticator
+from twitchAPI.object.eventsub import (
+    ChannelBanEvent,
+    ChannelPointsCustomRewardRedemptionAddEvent,
+    ChannelRaidEvent,
+    ChannelUnbanEvent,
+)
+from twitchAPI.twitch import Twitch
+from twitchAPI.type import AuthScope, ChatEvent
+
+from custom_commands import check_for_command as is_command_existing
+from mod_action import add_ban, get_banned_users, remove_ban  # noqa
+from quotes import get_quote
+from redeems.redeems import deal_with_sharktooth, deal_with_VIP
+
+load_dotenv()
+
+APP_ID = "4ptlgvdo2q2d5fdwja2a8kwt8rxxz6"
+APP_SECRET = "5z2gcgcip9k1kzwf2pb0t1wjytf48c"
+USER_SCOPE = [
+    AuthScope.CHAT_READ,
+    AuthScope.CHAT_EDIT,
+    AuthScope.CHANNEL_READ_REDEMPTIONS,
+    AuthScope.MODERATOR_READ_BANNED_USERS,
+    AuthScope.MODERATOR_MANAGE_BANNED_USERS,
+    AuthScope.MODERATOR_READ_UNBAN_REQUESTS,
+    AuthScope.MODERATOR_MANAGE_UNBAN_REQUESTS,
+    AuthScope.MODERATOR_READ_VIPS,
+]
+TARGET_CHANNEL = ["spiderbyte2007", "sharkocalypse", "dyslexxik"]
+
+
+class SharkBot:
+    def __init__(self, app_id: str, app_secret: str, user_scope: list[AuthScope], target_channels: list[str]):
+        self.app_id = app_id
+        self.app_secret = app_secret
+        self.user_scope = user_scope
+        self.target_channels = target_channels
+
+        self.redeem_twitch: Twitch | None = None
+        self.eventsub: EventSubWebsocket | None = None
+        self.twitch: Twitch | None = None
+        self.chat: Chat | None = None
+        self.sharkocalypse_twitch: Twitch | None = None
+        self.sharkocalypse_id: str | None = None
+        self.dyslexxik_twitch: Twitch | None = None
+        self.dyslexxik_id: str | None = None
+        self.bot_id: str | None = None
+
+    async def setup(self):
+        self.sharkocalypse_twitch = await Twitch(self.app_id, self.app_secret)
+        redeem_helper = UserAuthenticationStorageHelper(
+            self.sharkocalypse_twitch, USER_SCOPE, Path("tokens/sharkocalypse.json")
+        )
+        await redeem_helper.bind()
+
+        self.dyslexxik_twitch = await Twitch(self.app_id, self.app_secret)
+        dys_redeem_helper = UserAuthenticationStorageHelper(self.dyslexxik_twitch, USER_SCOPE, Path("tokens/dyslexxik.json"))
+        await dys_redeem_helper.bind()
+
+        self.redeem_twitch = await Twitch(self.app_id, self.app_secret)
+        # for sharkocalypse
+        user = await first(self.redeem_twitch.get_users(logins=["sharkocalypse"]))
+        if user is None:
+            raise ValueError("Could not find user: sharkocalypse. Please check for name change.")
+        self.sharkocalypse_id = user.id
+
+        # for dyslexxik
+        user_2 = await first(self.redeem_twitch.get_users(logins=["dyslexxik"]))
+        if user_2 is None:
+            raise ValueError("Could not find user: dyslexxik. Please check for name change.")
+        self.dyslexxik_id = user_2.id
+
+        # for bot
+        user_3 = await first(self.redeem_twitch.get_users(logins=["sharkxxbot"]))
+        if user_3 is None:
+            raise ValueError("Could not find user: sharkxxbot. Please check for a name change.")
+        self.bot_id = user_3.id
+
+        self.eventsub = EventSubWebsocket(self.redeem_twitch)
+        self.eventsub.start()
+        await self.eventsub.listen_channel_points_custom_reward_redemption_add(
+            broadcaster_user_id=self.sharkocalypse_id, callback=self.on_redemption
+        )
+        await self.eventsub.listen_channel_points_custom_reward_redemption_add(
+            broadcaster_user_id=self.dyslexxik_id, callback=self.on_redemption
+        )
+
+        # Non-redeem section
+        self.twitch = await Twitch(self.app_id, self.app_secret)
+        auth = UserAuthenticator(self.twitch, self.user_scope)
+        authentication = await auth.authenticate()
+        assert authentication is not None
+        token, refresh_token = authentication
+        await self.twitch.set_user_authentication(token, self.user_scope, refresh_token)
+
+        self.chat = await Chat(self.twitch)
+
+    async def refresh_bans(self):
+        assert self.twitch
+        assert self.dyslexxik_id
+        assert self.sharkocalypse_id
+
+        shark_banned_users = [user async for user in self.twitch.get_banned_users(self.sharkocalypse_id)]
+        dys_banned_users = [user async for user in self.twitch.get_banned_users(self.dyslexxik_id)]
+
+        for banned_user in shark_banned_users:
+            await add_ban(
+                streamer="sharkocalypse",
+                banned_user=banned_user.user_name,
+                banned_user_id=int(banned_user.user_id),
+                reason=banned_user.reason,
+                mod_that_banned_them=banned_user.moderator_name,
+                when_banned=banned_user.created_at,
+            )
+
+        for _banned_user in dys_banned_users:
+            await add_ban(
+                streamer="dyslexxik",
+                banned_user=_banned_user.user_name,
+                banned_user_id=int(_banned_user.user_id),
+                reason=_banned_user.reason,
+                mod_that_banned_them=_banned_user.moderator_name,
+                when_banned=_banned_user.created_at,
+            )
+
+    async def on_ready(self, ready_event: EventData):
+        print("Bot is ready for work, joining channels")
+        # join our target channel, if you want to join multiple, either call join for each individually
+        # or even better pass a list of channels as the argument
+        await ready_event.chat.join_room(TARGET_CHANNEL)
+        # you can do other bot initialization things in here
+        print("Bot has joined the channels")
+
+    # happens upon a redeem
+    async def on_redemption(self, _event: ChannelPointsCustomRewardRedemptionAddEvent):
+        event = _event.event
+        reward = event.reward
+        twitch_name: str = event.user_name
+        twitch_id: int = int(event.user_id)
+        if reward.title == "shark tooth":
+            await deal_with_sharktooth(twitch_name, twitch_id)
+        elif reward.title == "VIP":
+            await deal_with_VIP(twitch_name, twitch_id)
+
+    # happens upon a message being sent
+    async def on_message(self, msg: ChatMessage):
+        assert msg.room
+        print(f"in {msg.room.name}, {msg.user.name} said: {msg.text}")
+        reply = await is_command_existing(msg.text)
+        if reply and isinstance(reply, str):
+            await msg.reply(reply)
+
+    # this will be called whenever someone subscribes to a channel
+    # async def on_sub(sub: ChatSub):
+    #     assert sub.room
+    #     print(f"New subscription in {sub.room.name}: \n  Type: {sub.sub_plan} \n  Message: {sub.sub_message}")
+
+    async def on_raid(self, _event: ChannelRaidEvent):
+        assert self.twitch
+        assert self.chat
+
+        event = _event.event
+        raider_name = event.from_broadcaster_user_name
+        raider_id = event.from_broadcaster_user_id
+        channel_raided = event.to_broadcaster_user_name
+        viewer_count = event.viewers
+
+        stream = await first(self.twitch.get_streams(user_id=[raider_id]))
+
+        if stream:
+            game = stream.game_name
+        else:
+            channel_info = await self.twitch.get_channel_information(broadcaster_id=raider_id)
+            game = channel_info[0].game_name
+
+        await self.chat.send_message(
+            room=channel_raided,
+            text=f"{raider_name} is raiding the cult from the realm of {game} with {viewer_count} others."
+            f"Wanna check out their rituals? https://twitch.tv/{raider_name}",
+        )
+
+    async def catch_command(self, cmd: ChatCommand):
+        assert cmd.room
+        await cmd.reply(
+            "Command not available :(. All sharks have been rehabilitated and are being returned to their natural habitats."
+        )
+
+    async def quote_command(self, cmd: ChatCommand):
+        assert cmd.room
+        quote = await get_quote()
+        if quote is None:
+            await cmd.reply("I don't have any quotes to give :(")
+        else:
+            await cmd.reply(f"Here's a quote: {quote}")
+
+    async def braincells_command(self, cmd: ChatCommand):
+        assert cmd.room
+        count = random.randint(0, 100)
+        await cmd.reply(f"You have {count} braincells")
+
+    async def sharkfact_command(self, cmd: ChatCommand):
+        file_path = Path(__file__)
+        database = file_path.parent.parent / "Shark-Bot" / "databases" / "shark_game.db"
+        async with aiosqlite.connect(database) as conn:
+            async with conn.execute("SELECT name, fact FROM sharks") as cur:
+                results = await cur.fetchall()
+                facts: dict = {}  # shark name -> fact
+                shark_names = []
+                for result in results:
+                    facts[result[0]] = {result[1]}
+                    shark_names.append(result[0])
+                how_many = len(shark_names)
+                index = random.randint(0, how_many)
+                name = shark_names[index]
+                await cmd.reply(f"Your random shark fact is for {name} and it is {facts[name]}")
+
+    async def on_ban(self, banEvent: ChannelBanEvent):
+        assert self.dyslexxik_twitch
+        assert self.sharkocalypse_twitch
+        assert self.bot_id
+        assert self.dyslexxik_id
+        assert self.sharkocalypse_id
+
+        event = banEvent.event
+        streamer = event.broadcaster_user_name
+
+        if event.ends_at is not None:
+            return
+
+        await add_ban(
+            streamer=streamer,
+            banned_user=event.user_name,
+            banned_user_id=int(event.user_id),
+            reason=event.reason,
+            mod_that_banned_them=event.moderator_user_name,
+            when_banned=event.banned_at,
+        )
+        if streamer == "sharkocalypse":
+            await self.dyslexxik_twitch.ban_user(
+                broadcaster_id=self.dyslexxik_id,
+                moderator_id=self.bot_id,
+                user_id=event.user_id,
+                reason=event.reason,
+            )
+        elif streamer == "dyslexxik":
+            await self.sharkocalypse_twitch.ban_user(
+                broadcaster_id=self.sharkocalypse_id,
+                moderator_id=self.bot_id,
+                user_id=event.user_id,
+                reason=event.reason,
+            )
+
+    async def on_unban(self, unbanEvent: ChannelUnbanEvent):
+        assert self.dyslexxik_id
+        assert self.sharkocalypse_id
+        assert self.bot_id
+        assert self.dyslexxik_twitch
+        assert self.sharkocalypse_twitch
+
+        event = unbanEvent.event
+        streamer = event.broadcaster_user_name
+        await remove_ban(streamer, event.user_name)
+        if streamer == "dyslexxik":
+            await self.sharkocalypse_twitch.unban_user(
+                broadcaster_id=self.sharkocalypse_id,
+                moderator_id=self.bot_id,
+                user_id=event.user_id,
+            )
+        elif streamer == "sharkocalypse":
+            await self.dyslexxik_twitch.unban_user(
+                broadcaster_id=self.dyslexxik_id,
+                moderator_id=self.bot_id,
+                user_id=event.user_id,
+            )
+
+    async def run(self):
+        await self.setup()
+        # Making sure everything was set up properly
+        assert self.chat, "chat is still None"
+        assert self.twitch, "twitch is still None"
+        assert self.redeem_twitch, "redeem_twitch is still None"
+        assert self.eventsub, "eventsub is still None"
+        assert self.dyslexxik_id, "dys's ID is still None"
+        assert self.sharkocalypse_id, "shark's ID is still None"
+        assert self.bot_id, "Bot's ID is still None"
+
+        # listen to when the bot is done starting up and ready to join channels
+        self.chat.register_event(ChatEvent.READY, self.on_ready)
+        # listen to chat messages
+        self.chat.register_event(ChatEvent.MESSAGE, self.on_message)
+        # # listen to channel subscriptions
+        # chat.register_event(ChatEvent.SUB, on_sub)
+        # listen to a raid
+        self.chat.register_event(ChatEvent.RAID, self.on_raid)
+        self.chat.register_command("catchshark", self.catch_command)
+        self.chat.register_command("feed", self.catch_command)
+        self.chat.register_command("quote", self.quote_command)
+        self.chat.register_command("sharkfact", self.sharkfact_command)
+
+        await self.eventsub.listen_channel_ban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_ban)
+        await self.eventsub.listen_channel_unban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_unban)
+        await self.eventsub.listen_channel_ban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_ban)
+        await self.eventsub.listen_channel_unban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_unban)
+
+        # we are done with our setup, lets start this bot up!
+        self.chat.start()
+
+        # lets run till we press enter in the console
+        try:
+            input("press ENTER to stop \n")
+        finally:
+            # now we can close the chat bot and the twitch api client
+            await self.eventsub.stop()
+            self.chat.stop()
+            await self.redeem_twitch.close()
+            await self.twitch.close()
+
+
+bot = SharkBot(APP_ID, APP_SECRET, USER_SCOPE, TARGET_CHANNEL)
+asyncio.run(bot.run())
