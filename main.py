@@ -1,5 +1,6 @@
 import asyncio
 import random
+from os import getenv
 from pathlib import Path
 
 import aiosqlite
@@ -24,8 +25,8 @@ from redeems.redeems import deal_with_sharktooth, deal_with_VIP
 
 load_dotenv()
 
-APP_ID = "4ptlgvdo2q2d5fdwja2a8kwt8rxxz6"
-APP_SECRET = "5z2gcgcip9k1kzwf2pb0t1wjytf48c"
+APP_ID = getenv("client_id")
+APP_SECRET = getenv("client_secret")
 USER_SCOPE = [
     AuthScope.CHAT_READ,
     AuthScope.CHAT_EDIT,
@@ -47,7 +48,8 @@ class SharkBot:
         self.target_channels = target_channels
 
         self.redeem_twitch: Twitch | None = None
-        self.eventsub: EventSubWebsocket | None = None
+        self.eventsub_shark: EventSubWebsocket | None = None
+        self.eventsub_dys: EventSubWebsocket | None = None
         self.twitch: Twitch | None = None
         self.chat: Chat | None = None
         self.sharkocalypse_twitch: Twitch | None = None
@@ -86,12 +88,15 @@ class SharkBot:
             raise ValueError("Could not find user: sharkxxbot. Please check for a name change.")
         self.bot_id = user_3.id
 
-        self.eventsub = EventSubWebsocket(self.redeem_twitch)
-        self.eventsub.start()
-        await self.eventsub.listen_channel_points_custom_reward_redemption_add(
+        self.eventsub_shark = EventSubWebsocket(self.sharkocalypse_twitch)
+        self.eventsub_shark.start()
+        await self.eventsub_shark.listen_channel_points_custom_reward_redemption_add(
             broadcaster_user_id=self.sharkocalypse_id, callback=self.on_redemption
         )
-        await self.eventsub.listen_channel_points_custom_reward_redemption_add(
+
+        self.eventsub_dys = EventSubWebsocket(self.dyslexxik_twitch)
+        self.eventsub_dys.start()
+        await self.eventsub_dys.listen_channel_points_custom_reward_redemption_add(
             broadcaster_user_id=self.dyslexxik_id, callback=self.on_redemption
         )
 
@@ -289,7 +294,8 @@ class SharkBot:
         assert self.chat, "chat is still None"
         assert self.twitch, "twitch is still None"
         assert self.redeem_twitch, "redeem_twitch is still None"
-        assert self.eventsub, "eventsub is still None"
+        assert self.eventsub_dys, "eventsub for dys is still None"
+        assert self.eventsub_shark, "event sub for shark is still None"
         assert self.dyslexxik_id, "dys's ID is still None"
         assert self.sharkocalypse_id, "shark's ID is still None"
         assert self.bot_id, "Bot's ID is still None"
@@ -307,10 +313,10 @@ class SharkBot:
         self.chat.register_command("quote", self.quote_command)
         self.chat.register_command("sharkfact", self.sharkfact_command)
 
-        await self.eventsub.listen_channel_ban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_ban)
-        await self.eventsub.listen_channel_unban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_unban)
-        await self.eventsub.listen_channel_ban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_ban)
-        await self.eventsub.listen_channel_unban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_unban)
+        await self.eventsub_shark.listen_channel_ban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_ban)
+        await self.eventsub_shark.listen_channel_unban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_unban)
+        await self.eventsub_dys.listen_channel_ban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_ban)
+        await self.eventsub_dys.listen_channel_unban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_unban)
 
         # we are done with our setup, lets start this bot up!
         self.chat.start()
@@ -320,11 +326,15 @@ class SharkBot:
             input("press ENTER to stop \n")
         finally:
             # now we can close the chat bot and the twitch api client
-            await self.eventsub.stop()
+            await self.eventsub_dys.stop()
+            await self.eventsub_shark.stop()
             self.chat.stop()
             await self.redeem_twitch.close()
             await self.twitch.close()
 
+
+assert APP_ID
+assert APP_SECRET
 
 bot = SharkBot(APP_ID, APP_SECRET, USER_SCOPE, TARGET_CHANNEL)
 asyncio.run(bot.run())
