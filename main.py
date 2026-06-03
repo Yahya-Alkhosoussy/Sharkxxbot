@@ -1,13 +1,10 @@
 import asyncio  # noqa
 import random  # noqa
-from pathlib import Path  # noqa
 from os import getenv
 from datetime import datetime
 
 from dotenv import load_dotenv  # noqa
 from twitchAPI.chat import Chat, ChatCommand, ChatMessage, EventData  # noqa
-from twitchAPI.eventsub.websocket import EventSubWebsocket  # noqa
-from twitchAPI.helper import first  # noqa
 from twitchAPI.oauth import UserAuthenticator  # noqa
 from twitchAPI.twitch import Twitch  # noqa
 from twitchAPI.type import AuthScope, ChatEvent  # noqa
