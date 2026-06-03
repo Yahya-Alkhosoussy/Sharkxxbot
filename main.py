@@ -177,6 +177,12 @@ class SharkXXCatchBot:
         else:
             await cmd.reply(f"{name}, I could not find your dex, did you link your twitch or do the tutorial on discord?")
 
+    async def shark_tooth(self, cmd: ChatCommand):
+        user = cmd.user
+        name = user.name
+        twitch_id = user.id
+        # Wait for further instructions
+
     async def run(self):
         await self.setup()
         # Making sure everything was set up properly
