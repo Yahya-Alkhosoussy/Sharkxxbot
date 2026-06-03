@@ -22,7 +22,7 @@ DEBUG = True
 
 async def get_sharks_after_rarity() -> tuple[set[str], str]:
     init_rarity = randint(0, 100)
-    if init_rarity <= 5:
+    if init_rarity <= 3:
         list_of_names = await get_shark_names_rarity(SharkRarity.ULTRA_RARE)
         rarity = "ultra rare"
     elif init_rarity <= 20:
