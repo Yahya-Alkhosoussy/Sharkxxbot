@@ -1,7 +1,12 @@
 # This is where all the catching logic lives
+from asyncio import run  # noqa
 from datetime import datetime
 from random import choice, randint
 from typing import Literal
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+
 
 from shark_db_interaction import (
     SharkRarity,
@@ -12,10 +17,12 @@ from shark_db_interaction import (
     set_feed_info,
 )
 
+DEBUG = True
+
 
 async def get_sharks_after_rarity() -> tuple[set[str], str]:
     init_rarity = randint(0, 100)
-    if init_rarity <= 9:
+    if init_rarity <= 5:
         list_of_names = await get_shark_names_rarity(SharkRarity.ULTRA_RARE)
         rarity = "ultra rare"
     elif init_rarity <= 20:
@@ -32,6 +39,39 @@ async def get_sharks_after_rarity() -> tuple[set[str], str]:
         rarity = "very common"
 
     return list_of_names, rarity
+
+
+def graph_rarities(rarities: dict, limit: int):
+    labels = list(rarities.keys())
+    values = list(rarities.values())
+
+    plt.bar(labels, values, color="steelblue")
+    plt.title("Shark Rarity Distribution")
+    plt.xlabel("Rarity")
+    plt.ylabel("Count")
+    plt.tight_layout()
+    dir = Path("test images")
+    if not dir.exists():
+        dir.mkdir()
+    plt.savefig(f"test images/rarities_{limit}.png")
+
+
+async def run_and_graph_data(limit: int):
+    rarities: dict[str, int] = {}
+    for _ in range(limit):
+        _, rarity = await get_sharks_after_rarity()
+        if not rarities.get(rarity):
+            rarities[rarity] = 1
+        else:
+            rarities[rarity] += 1
+
+    graph_rarities(rarities, limit)
+
+
+if DEBUG:
+    limits = [10, 100, 1000, 10000]
+    for limit in limits:
+        run(run_and_graph_data(limit))
 
 
 async def choose_shark_for_catch():
