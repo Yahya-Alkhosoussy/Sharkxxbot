@@ -19,3 +19,4 @@ wheels/
 # UV stuff
 *.lock
 .python-version
+test images
