@@ -37,7 +37,7 @@ USER_SCOPE = [
     AuthScope.MODERATOR_MANAGE_UNBAN_REQUESTS,
     AuthScope.MODERATOR_READ_VIPS,
 ]
-TARGET_CHANNEL = ["spiderbyte2007", "sharkocalypse", "dyslexxik"]
+TARGET_CHANNEL = ["sharkocalypse", "dyslexxik"]
 
 
 class SharkBot:
@@ -47,7 +47,6 @@ class SharkBot:
         self.user_scope = user_scope
         self.target_channels = target_channels
 
-        self.redeem_twitch: Twitch | None = None
         self.eventsub_shark: EventSubWebsocket | None = None
         self.eventsub_dys: EventSubWebsocket | None = None
         self.twitch: Twitch | None = None
@@ -69,27 +68,29 @@ class SharkBot:
         dys_redeem_helper = UserAuthenticationStorageHelper(self.dyslexxik_twitch, USER_SCOPE, Path("tokens/dyslexxik.json"))
         await dys_redeem_helper.bind()
 
-        self.redeem_twitch = await Twitch(self.app_id, self.app_secret)
         # for sharkocalypse
-        user = await first(self.redeem_twitch.get_users(logins=["sharkocalypse"]))
+        user = await first(self.sharkocalypse_twitch.get_users(logins=["sharkocalypse"]))
         if user is None:
             raise ValueError("Could not find user: sharkocalypse. Please check for name change.")
         self.sharkocalypse_id = user.id
 
         # for dyslexxik
-        user_2 = await first(self.redeem_twitch.get_users(logins=["dyslexxik"]))
+        user_2 = await first(self.sharkocalypse_twitch.get_users(logins=["dyslexxik"]))
         if user_2 is None:
             raise ValueError("Could not find user: dyslexxik. Please check for name change.")
         self.dyslexxik_id = user_2.id
 
         # for bot
-        user_3 = await first(self.redeem_twitch.get_users(logins=["sharkxxbot"]))
+        user_3 = await first(self.sharkocalypse_twitch.get_users(logins=["sharkxxbot"]))
         if user_3 is None:
             raise ValueError("Could not find user: sharkxxbot. Please check for a name change.")
         self.bot_id = user_3.id
 
         self.eventsub_shark = EventSubWebsocket(self.sharkocalypse_twitch)
         self.eventsub_shark.start()
+        print(self.sharkocalypse_id)
+        await asyncio.sleep(2)  # give the websocket time to handshake
+        print("handshake done")
         await self.eventsub_shark.listen_channel_points_custom_reward_redemption_add(
             broadcaster_user_id=self.sharkocalypse_id, callback=self.on_redemption
         )
@@ -293,7 +294,6 @@ class SharkBot:
         # Making sure everything was set up properly
         assert self.chat, "chat is still None"
         assert self.twitch, "twitch is still None"
-        assert self.redeem_twitch, "redeem_twitch is still None"
         assert self.eventsub_dys, "eventsub for dys is still None"
         assert self.eventsub_shark, "event sub for shark is still None"
         assert self.dyslexxik_id, "dys's ID is still None"
@@ -329,7 +329,6 @@ class SharkBot:
             await self.eventsub_dys.stop()
             await self.eventsub_shark.stop()
             self.chat.stop()
-            await self.redeem_twitch.close()
             await self.twitch.close()
 
 
