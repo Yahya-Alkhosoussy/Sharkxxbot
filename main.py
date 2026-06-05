@@ -33,7 +33,7 @@ FEED_LINES = [
 TARGET_CHANNEL = ["sharkocalypse", "dyslexxik"]
 
 
-class SharkXXCatchBot:
+class SharkBot:
     def __init__(self, app_id: str, app_secret: str, user_scope: list[AuthScope], target_channels: list[str]):
         self.app_id = app_id
         self.app_secret = app_secret
@@ -299,5 +299,8 @@ class SharkXXCatchBot:
             await self.twitch.close()
 
 
-bot = SharkXXCatchBot(CLIENT_ID, CLIENT_SECRET, USER_SCOPES, TARGET_CHANNELs)
+assert APP_ID
+assert APP_SECRET
+
+bot = SharkBot(APP_ID, APP_SECRET, USER_SCOPE, TARGET_CHANNEL)
 asyncio.run(bot.run())
