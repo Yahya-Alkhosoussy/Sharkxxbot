@@ -31,6 +31,16 @@ load_dotenv()
 
 APP_ID = os.getenv("client_id")
 APP_SECRET = os.getenv("client_secret")
+MOD_SCOPE = [
+    AuthScope.CHAT_READ,
+    AuthScope.CHAT_EDIT,
+    AuthScope.MODERATOR_READ_BANNED_USERS,
+    AuthScope.MODERATOR_MANAGE_BANNED_USERS,
+    AuthScope.MODERATOR_READ_UNBAN_REQUESTS,
+    AuthScope.MODERATOR_MANAGE_UNBAN_REQUESTS,
+    AuthScope.MODERATOR_READ_VIPS,
+]
+BROADCAST_SCOPE = [AuthScope.CHANNEL_READ_REDEMPTIONS]
 USER_SCOPE = [
     AuthScope.CHAT_READ,
     AuthScope.CHAT_EDIT,
@@ -41,7 +51,7 @@ USER_SCOPE = [
     AuthScope.MODERATOR_MANAGE_UNBAN_REQUESTS,
     AuthScope.MODERATOR_READ_VIPS,
 ]
-TARGET_CHANNEL = ["sharkocalypse", "dyslexxik"]
+TARGET_CHANNEL = ["sharkocalypse", "dyslexxik", "spiderbyte2007"]
 
 
 class SharkBot:
@@ -53,23 +63,40 @@ class SharkBot:
 
         self.eventsub_shark: EventSubWebsocket | None = None
         self.eventsub_dys: EventSubWebsocket | None = None
+        self.mod_eventsub_shark: EventSubWebsocket | None = None
+        self.mod_eventsub_dys: EventSubWebsocket | None = None
         self.twitch: Twitch | None = None
         self.chat: Chat | None = None
         self.sharkocalypse_twitch: Twitch | None = None
+        self.sharkocalypse_redeem_twitch: Twitch | None = None
         self.sharkocalypse_id: str | None = None
         self.dyslexxik_twitch: Twitch | None = None
+        self.dyslexxik_redeem_twitch: Twitch | None = None
         self.dyslexxik_id: str | None = None
         self.bot_id: str | None = None
 
     async def setup(self):
         self.sharkocalypse_twitch = await Twitch(self.app_id, self.app_secret)
-        redeem_helper = UserAuthenticationStorageHelper(
-            self.sharkocalypse_twitch, USER_SCOPE, Path("tokens/sharkocalypse.json")
+        shark_twitch_helper = UserAuthenticationStorageHelper(
+            self.sharkocalypse_twitch, MOD_SCOPE, Path("tokens/sharkocalypse_mod.json")
         )
-        await redeem_helper.bind()
+        await shark_twitch_helper.bind()
+
+        self.sharkocalypse_redeem_twitch = await Twitch(self.app_id, self.app_secret)
+        shark_redeem_helper = UserAuthenticationStorageHelper(
+            self.sharkocalypse_redeem_twitch, BROADCAST_SCOPE, Path("tokens/sharkocalypse_broadcast.json")
+        )
+        await shark_redeem_helper.bind()
+        token = self.sharkocalypse_redeem_twitch.get_user_auth_token()
 
         self.dyslexxik_twitch = await Twitch(self.app_id, self.app_secret)
-        dys_redeem_helper = UserAuthenticationStorageHelper(self.dyslexxik_twitch, USER_SCOPE, Path("tokens/dyslexxik.json"))
+        dys_twitch_helper = UserAuthenticationStorageHelper(self.dyslexxik_twitch, MOD_SCOPE, Path("tokens/dyslexxik_mod.json"))
+        await dys_twitch_helper.bind()
+
+        self.dyslexxik_redeem_twitch = await Twitch(self.app_id, self.app_secret)
+        dys_redeem_helper = UserAuthenticationStorageHelper(
+            self.dyslexxik_redeem_twitch, BROADCAST_SCOPE, Path("tokens/dyslexxik_broadcast.json")
+        )
         await dys_redeem_helper.bind()
 
         # for sharkocalypse
@@ -90,16 +117,15 @@ class SharkBot:
             raise ValueError("Could not find user: sharkxxbot. Please check for a name change.")
         self.bot_id = user_3.id
 
-        self.eventsub_shark = EventSubWebsocket(self.sharkocalypse_twitch)
+        self.eventsub_shark = EventSubWebsocket(self.sharkocalypse_redeem_twitch)
         self.eventsub_shark.start()
         print(self.sharkocalypse_id)
-        await asyncio.sleep(2)  # give the websocket time to handshake
-        print("handshake done")
+
         await self.eventsub_shark.listen_channel_points_custom_reward_redemption_add(
             broadcaster_user_id=self.sharkocalypse_id, callback=self.on_redemption
         )
 
-        self.eventsub_dys = EventSubWebsocket(self.dyslexxik_twitch)
+        self.eventsub_dys = EventSubWebsocket(self.dyslexxik_redeem_twitch)
         self.eventsub_dys.start()
         await self.eventsub_dys.listen_channel_points_custom_reward_redemption_add(
             broadcaster_user_id=self.dyslexxik_id, callback=self.on_redemption
@@ -112,6 +138,12 @@ class SharkBot:
         assert authentication is not None
         token, refresh_token = authentication
         await self.twitch.set_user_authentication(token, self.user_scope, refresh_token)
+
+        self.mod_eventsub_shark: EventSubWebsocket | None = EventSubWebsocket(self.sharkocalypse_twitch)
+        self.mod_eventsub_shark.start()
+
+        self.mod_eventsub_dys: EventSubWebsocket | None = EventSubWebsocket(self.dyslexxik_twitch)
+        self.mod_eventsub_dys.start()
 
         self.chat = await Chat(self.twitch)
 
@@ -321,6 +353,8 @@ class SharkBot:
     async def close_bot(self):
         assert self.eventsub_dys
         assert self.eventsub_shark
+        assert self.mod_eventsub_dys
+        assert self.mod_eventsub_shark
         assert self.chat
         assert self.twitch
         # now we can close the chat bot and the twitch api client
@@ -339,6 +373,8 @@ class SharkBot:
         assert self.dyslexxik_id, "dys's ID is still None"
         assert self.sharkocalypse_id, "shark's ID is still None"
         assert self.bot_id, "Bot's ID is still None"
+        assert self.mod_eventsub_shark, "Shark's mod event sub is not set up properly"
+        assert self.mod_eventsub_dys, "Dys's mod event sub is not set up properly"
 
         # listen to when the bot is done starting up and ready to join channels
         self.chat.register_event(ChatEvent.READY, self.on_ready)
@@ -353,10 +389,13 @@ class SharkBot:
         self.chat.register_command("quote", self.quote_command)
         self.chat.register_command("sharkfact", self.sharkfact_command)
 
-        await self.eventsub_shark.listen_channel_ban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_ban)
-        await self.eventsub_shark.listen_channel_unban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_unban)
-        await self.eventsub_dys.listen_channel_ban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_ban)
-        await self.eventsub_dys.listen_channel_unban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_unban)
+        # print(self.mod_eventsub_shark._twitch._user_auth_token)
+        # print(self.mod_eventsub_shark._twitch._user_auth_scope)
+
+        await self.mod_eventsub_shark.listen_channel_ban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_ban)
+        await self.mod_eventsub_shark.listen_channel_unban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_unban)
+        await self.mod_eventsub_dys.listen_channel_ban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_ban)
+        await self.mod_eventsub_dys.listen_channel_unban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_unban)
 
         # we are done with our setup, lets start this bot up!
         self.chat.start()
