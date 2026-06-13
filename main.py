@@ -189,7 +189,7 @@ class SharkBot:
         reward = event.reward
         twitch_name: str = event.user_name
         twitch_id: int = int(event.user_id)
-        if reward.title == "shark tooth":
+        if reward.title == "daily shark tooth!":
             await deal_with_sharktooth(twitch_name, twitch_id)
         elif reward.title == "VIP":
             await deal_with_VIP(twitch_name, twitch_id)
@@ -198,7 +198,7 @@ class SharkBot:
     async def on_message(self, msg: ChatMessage):
         assert msg.room
         print(f"in {msg.room.name}, {msg.user.name} said: {msg.text}")
-        reply = await is_command_existing(msg.text)
+        reply = await is_command_existing(msg.text, msg.room.name)
         if reply and isinstance(reply, str):
             await msg.reply(reply)
 
