@@ -10,10 +10,12 @@ async def init_db():
     await conn.execute("""CREATE TABLE IF NOT EXISTS commands
                 (
                     id INTEGER PRIMARY KEY,
-                    name TEXT UNIQUE, -- the name of the command
+                    name TEXT, -- the name of the command
                     reply TEXT, -- what the bot should reply with
                     user_level TEXT, -- what's the minimum level the user needs in order to use it
-                    active BOOLEAN -- whether the command is active or not
+                    active BOOLEAN, -- whether the command is active or not
+                    streamer TEXT NOT NULL -- The streamer where this command should work in.\
+                    UNIQUE(name, streamer)
                 )""")
     await conn.commit()
 
@@ -26,12 +28,12 @@ Are they a moderator? Are they the streamer themselves? Is it a sub only command
 """
 
 
-async def add_command(command_name: str, command_reply: str, user_level: str, active: bool = False):
+async def add_command(command_name: str, command_reply: str, user_level: str, streamer: str, active: bool = False):
     name = "!" + command_name
     async with aiosqlite.connect(DB_PATH) as conn:
         await conn.execute(
-            "INSERT OR IGNORE INTO commands (name, reply, user_level, active) VALUES (?, ?, ?, ?)",
-            (name, command_reply, user_level, active),
+            "INSERT OR IGNORE INTO commands (name, reply, user_level, active, streamer) VALUES (?, ?, ?, ?, ?)",
+            (name, command_reply, user_level, active, streamer),
         )
         await conn.commit()
 
@@ -42,9 +44,11 @@ async def edit_command_reply(command_id: int, command_reply: str):
         await conn.commit()
 
 
-async def check_for_command(command_name: str) -> str | bool:
+async def check_for_command(command_name: str, channel: str) -> str | bool:
     async with aiosqlite.connect(DB_PATH) as conn:
-        async with conn.execute("SELECT reply FROM commands WHERE name=?", (command_name,)) as cur:
+        async with conn.execute(
+            "SELECT reply FROM commands WHERE name=? AND active=? AND streamer=?", (command_name, True, channel)
+        ) as cur:
             reply = await cur.fetchone()
             if reply:
                 return reply[0]
@@ -71,5 +75,6 @@ async def get_command_list():
 
 
 asyncio.run(init_db())
-asyncio.run(add_command("hello", "hello there!", "everyone", True))
-print(asyncio.run(get_command_list()))
+if __name__ == "__main__":
+    asyncio.run(add_command("hello", "hello there!", "everyone", "spiderbyte2007", True))
+    print(asyncio.run(get_command_list()))
