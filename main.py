@@ -391,8 +391,8 @@ class SharkBot:
         # # listen to channel subscriptions
         # chat.register_event(ChatEvent.SUB, on_sub)
         # listen to a raid
-        await self.eventsub_shark.listen_channel_raid(self.on_raid)
-        await self.eventsub_dys.listen_channel_raid(self.on_raid)
+        await self.eventsub_shark.listen_channel_raid(self.on_raid, to_broadcaster_user_id=self.sharkocalypse_id)
+        await self.eventsub_dys.listen_channel_raid(self.on_raid, to_broadcaster_user_id=self.dyslexxik_id)
         self.chat.register_command("quote", self.quote_command)
         self.chat.register_command("sharkfact", self.sharkfact_command)
         self.chat.register_command("restart", self.restart)
