@@ -247,10 +247,17 @@ class SharkBot:
             channel_info = await self.twitch.get_channel_information(broadcaster_id=raider_id)
             game = channel_info[0].game_name
 
+        if channel_raided != "spiderbyte2007":
+            await self.chat.send_message(
+                room=channel_raided,
+                text=f"{raider_name} is raiding the cult from the realm of {game} with {viewer_count} others."
+                f" Wanna check out their rituals? https://twitch.tv/{raider_name}",
+            )
+            return
         await self.chat.send_message(
             room=channel_raided,
-            text=f"{raider_name} is raiding the cult from the realm of {game} with {viewer_count} others."
-            f" Wanna check out their rituals? https://twitch.tv/{raider_name}",
+            text=f"Welcome in raiders! Thank you {raider_name} for the raid from {game} with {viewer_count} others."
+            f" Go check them out!! https://twitch.tv/{raider_name}",
         )
 
     async def quote_command(self, cmd: ChatCommand):
@@ -416,6 +423,7 @@ class SharkBot:
         self.chat.register_command("quote", self.quote_command)
         self.chat.register_command("sharkfact", self.sharkfact_command)
         self.chat.register_command("restart", self.restart)
+        self.chat.register_command("braincells", self.braincells_command)
 
         # print(self.mod_eventsub_shark._twitch._user_auth_token)
         # print(self.mod_eventsub_shark._twitch._user_auth_scope)
