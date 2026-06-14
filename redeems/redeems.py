@@ -1,6 +1,6 @@
 from random import choice
 
-from redeems.SQL.shark_tooth import add_shark_tooth, add_user_to_shark_tooth, get_crystal_list, is_user_in_db
+from redeems.SQL.shark_tooth import add_shark_tooth, add_user_to_shark_tooth, get_crystal_list, get_messages, is_user_in_db
 from redeems.SQL.VIP import add_user_to_VIP
 
 
@@ -11,11 +11,16 @@ async def deal_with_sharktooth(username: str, user_id: int):
 
     crystal: str = choice(list(crystal_list))[0]
 
+    message_list = await get_messages()
+    message: str = choice(message_list)[0]
+
+    message = message.replace("(crystal type)", crystal)
+
     if is_in_db:
         await add_shark_tooth(username, user_id, crystal)
     else:
         await add_user_to_shark_tooth(username, user_id, crystal)
-    return crystal
+    return message
 
 
 async def deal_with_VIP(username: str, user_id: int):
