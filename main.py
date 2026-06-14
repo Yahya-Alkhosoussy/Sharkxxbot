@@ -363,7 +363,11 @@ class SharkBot:
         await self.eventsub_shark.stop()
         await self.mod_eventsub_dys.stop()
         await self.mod_eventsub_shark.stop()
-        self.chat.stop()
+        try:
+            await asyncio.wait_for(asyncio.to_thread(self.chat.stop), timeout=3.0)
+        except asyncio.TimeoutError:
+            pass  # force restart after 3 seconds
+
         await self.twitch.close()
 
     async def run(self):
