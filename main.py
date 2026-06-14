@@ -231,12 +231,6 @@ class SharkBot:
             f"Wanna check out their rituals? https://twitch.tv/{raider_name}",
         )
 
-    async def catch_command(self, cmd: ChatCommand):
-        assert cmd.room
-        await cmd.reply(
-            "Command not available :(. All sharks have been rehabilitated and are being returned to their natural habitats."
-        )
-
     async def quote_command(self, cmd: ChatCommand):
         assert cmd.room
         quote = await get_quote()
@@ -384,8 +378,6 @@ class SharkBot:
         # chat.register_event(ChatEvent.SUB, on_sub)
         # listen to a raid
         self.chat.register_event(ChatEvent.RAID, self.on_raid)
-        self.chat.register_command("catchshark", self.catch_command)
-        self.chat.register_command("feed", self.catch_command)
         self.chat.register_command("quote", self.quote_command)
         self.chat.register_command("sharkfact", self.sharkfact_command)
 
