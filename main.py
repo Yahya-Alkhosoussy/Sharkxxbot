@@ -211,7 +211,7 @@ class SharkBot:
         if reward.title == "daily shark tooth!":
             message = await deal_with_sharktooth(twitch_name, twitch_id)
             await self.twitch.send_chat_message(
-                broadcaster_id=event.broadcaster_user_id, sender_id=self.bot_id, message=message + f"@{twitch_name}"
+                broadcaster_id=event.broadcaster_user_id, sender_id=self.bot_id, message=message + f" @{twitch_name}"
             )
         elif reward.title == "VIP":
             await deal_with_VIP(twitch_name, twitch_id)
@@ -250,7 +250,7 @@ class SharkBot:
         await self.chat.send_message(
             room=channel_raided,
             text=f"{raider_name} is raiding the cult from the realm of {game} with {viewer_count} others."
-            f"Wanna check out their rituals? https://twitch.tv/{raider_name}",
+            f" Wanna check out their rituals? https://twitch.tv/{raider_name}",
         )
 
     async def quote_command(self, cmd: ChatCommand):
