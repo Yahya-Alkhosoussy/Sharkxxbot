@@ -15,7 +15,7 @@ from twitchAPI.oauth import UserAuthenticationStorageHelper, UserAuthenticator
 from twitchAPI.object.eventsub import (
     ChannelBanEvent,
     ChannelPointsCustomRewardRedemptionAddEvent,
-    ChannelRaidEvent,
+    ChannelRaidData,
     ChannelUnbanEvent,
 )
 from twitchAPI.twitch import Twitch
@@ -215,11 +215,10 @@ class SharkBot:
     #     assert sub.room
     #     print(f"New subscription in {sub.room.name}: \n  Type: {sub.sub_plan} \n  Message: {sub.sub_message}")
 
-    async def on_raid(self, _event: ChannelRaidEvent):
+    async def on_raid(self, event: ChannelRaidData):
         assert self.twitch
         assert self.chat
 
-        event = _event.event
         raider_name = event.from_broadcaster_user_name
         raider_id = event.from_broadcaster_user_id
         channel_raided = event.to_broadcaster_user_name
