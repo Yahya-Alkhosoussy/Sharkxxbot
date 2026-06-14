@@ -109,82 +109,6 @@ async def add_crystal(crystal_name: str):
         await conn.commit()
 
 
-names = [
-    "Clear Quartz",
-    "Amethyst",
-    "Rose Quartz",
-    "Citrine",
-    "Black Tourmaline",
-    "Selenite",
-    "Carnelian",
-    "Lapis Lazuli",
-    "Green Aventurine",
-    "Fluorite ",
-    "Bloodstone",
-    "Red Jasper",
-    "Agate",
-    "Ametrine",
-    "Ancestralite",
-    "Apophyllite",
-    "Aquamarine",
-    "Aragonite",
-    "Calcite",
-    "Copper",
-    "Coppernite",
-    "Emerald",
-    "Fluorite",
-    "Garnet",
-    "Himalayan Salt",
-    "Iolite",
-    "Jade",
-    "Kunzite",
-    "Labradorite",
-    "Lapis Lazuli",
-    "Moonstone",
-    "Morganite",
-    "Muscovite",
-    "Black Obsidian",
-    "Black Onyx",
-    "Opal",
-    "Petalite",
-    "Pyrite",
-    "Clear Quartz",
-    "Fire Quartz",
-    "Rhodonite",
-    "Ruby",
-    "Pink Sapphire",
-    "Tanzanite",
-    "Tiger's Eye",
-    "Turquoise",
-]
-
-for name in names:
-    crystal_list = list(asyncio.run(get_crystal_list()))
-    if name in crystal_list:
-        continue
-    asyncio.run(add_crystal(name))
-
-messages = [
-    "You reach into the abyss and feel a sharp prick... a tithe has been paid.  A (crystal type) shark tooth appears as a gift from the deep.",  # noqa
-    "You reach into the abyss and lose something you can't quite name. In return, you gain a (crystal type) shark tooth. Something tries to convince you it was a fair trade.",  # noqa
-    "You reach into the abyss. Something sharp brushes your fingertip. Moments later, a  (crystal type) shark tooth finds its way into your possession. Entirely unrelated, surely.",  # noqa
-    "The sting is brief, almost polite. When it fades, a  (crystal type) shark tooth is already in your possession. The Deep continues without comment.",  # noqa
-    "The drop is taken, but the sensation lingers longer than it should, like an echo underwater. A (crystal type) shark tooth surfaces afterward.",  # noqa
-    "Something is taken that cannot be named. In exchange, a (crystal type) shark tooth floats towards you.",
-    "Something is quietly collected from you by the abyss. You’re not sure what. A (crystal type) shark tooth is left behind.",
-    "A crimson offering sinks into unseen depths. Moments later, a (crystal type) shark tooth surfaces.",
-    "No one remembers placing the (crystal type) shark tooth in your hand. Best not to ask.",
-    "The tides whisper among themselves before surrendering a (crystal type) shark tooth.",
-    "A bargain is acknowledged. The terms are unclear, but a (crystal type) shark tooth has been delivered.",
-    "Your tithe causes a momentary desync between you and reality. When things resync, you have a (crystal type) shark tooth.",
-    "Something stirs beneath the dark waters. When the ripples settle, a (crystal type) shark tooth remains.",
-    "You reach into the abyss. The darkness rummages through your pockets. Suddenly they feel... lighter. You are given a (crystal type) shark tooth in return.",  # noqa
-    "You reach into the abyss. A moment passes. When your hand returns, it carries a (crystal type) shark tooth... and a secret you'll remember later.",  # noqa
-    "You reach into the abyss. Something wraps around your hand gently. When you pull it back, a (crystal type) shark tooth rests in your palm. Curious.",  # noqa
-    "You reach into the abyss and feel a sharp prick upon your finger. Something unseen drinks a drop of your essence. A trade has been accepted... In return, you receive a (crystal type) shark tooth.",  # noqa
-]
-
-
 async def get_messages():
     async with aiosqlite.connect("databases/redeems.db") as conn:
         async with conn.execute("SELECT message FROM tooth_messages") as cur:
@@ -198,8 +122,84 @@ async def add_message(message: str):
         await conn.commit()
 
 
-for message in messages:
-    current_messages = asyncio.run(get_messages())
-    if message in current_messages:
-        continue
-    asyncio.run(add_message(message))
+if __name__ == "__main__":
+    names = [
+        "Clear Quartz",
+        "Amethyst",
+        "Rose Quartz",
+        "Citrine",
+        "Black Tourmaline",
+        "Selenite",
+        "Carnelian",
+        "Lapis Lazuli",
+        "Green Aventurine",
+        "Fluorite ",
+        "Bloodstone",
+        "Red Jasper",
+        "Agate",
+        "Ametrine",
+        "Ancestralite",
+        "Apophyllite",
+        "Aquamarine",
+        "Aragonite",
+        "Calcite",
+        "Copper",
+        "Coppernite",
+        "Emerald",
+        "Fluorite",
+        "Garnet",
+        "Himalayan Salt",
+        "Iolite",
+        "Jade",
+        "Kunzite",
+        "Labradorite",
+        "Lapis Lazuli",
+        "Moonstone",
+        "Morganite",
+        "Muscovite",
+        "Black Obsidian",
+        "Black Onyx",
+        "Opal",
+        "Petalite",
+        "Pyrite",
+        "Clear Quartz",
+        "Fire Quartz",
+        "Rhodonite",
+        "Ruby",
+        "Pink Sapphire",
+        "Tanzanite",
+        "Tiger's Eye",
+        "Turquoise",
+    ]
+
+    for name in names:
+        crystal_list = list(asyncio.run(get_crystal_list()))
+        if name in crystal_list:
+            continue
+        asyncio.run(add_crystal(name))
+
+    messages = [
+        "You reach into the abyss and feel a sharp prick... a tithe has been paid.  A (crystal type) shark tooth appears as a gift from the deep.",  # noqa
+        "You reach into the abyss and lose something you can't quite name. In return, you gain a (crystal type) shark tooth. Something tries to convince you it was a fair trade.",  # noqa
+        "You reach into the abyss. Something sharp brushes your fingertip. Moments later, a  (crystal type) shark tooth finds its way into your possession. Entirely unrelated, surely.",  # noqa
+        "The sting is brief, almost polite. When it fades, a  (crystal type) shark tooth is already in your possession. The Deep continues without comment.",  # noqa
+        "The drop is taken, but the sensation lingers longer than it should, like an echo underwater. A (crystal type) shark tooth surfaces afterward.",  # noqa
+        "Something is taken that cannot be named. In exchange, a (crystal type) shark tooth floats towards you.",
+        "Something is quietly collected from you by the abyss. You’re not sure what. A (crystal type) shark tooth is left behind.",  # noqa
+        "A crimson offering sinks into unseen depths. Moments later, a (crystal type) shark tooth surfaces.",
+        "No one remembers placing the (crystal type) shark tooth in your hand. Best not to ask.",
+        "The tides whisper among themselves before surrendering a (crystal type) shark tooth.",
+        "A bargain is acknowledged. The terms are unclear, but a (crystal type) shark tooth has been delivered.",
+        "Your tithe causes a momentary desync between you and reality. When things resync, you have a (crystal type) shark tooth.",  # noqa
+        "Something stirs beneath the dark waters. When the ripples settle, a (crystal type) shark tooth remains.",
+        "You reach into the abyss. The darkness rummages through your pockets. Suddenly they feel... lighter. You are given a (crystal type) shark tooth in return.",  # noqa
+        "You reach into the abyss. A moment passes. When your hand returns, it carries a (crystal type) shark tooth... and a secret you'll remember later.",  # noqa
+        "You reach into the abyss. Something wraps around your hand gently. When you pull it back, a (crystal type) shark tooth rests in your palm. Curious.",  # noqa
+        "You reach into the abyss and feel a sharp prick upon your finger. Something unseen drinks a drop of your essence. A trade has been accepted... In return, you receive a (crystal type) shark tooth.",  # noqa
+    ]
+
+    for message in messages:
+        current_messages = asyncio.run(get_messages())
+        if message in current_messages:
+            continue
+        asyncio.run(add_message(message))
