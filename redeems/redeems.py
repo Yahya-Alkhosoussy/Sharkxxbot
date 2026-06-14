@@ -9,12 +9,13 @@ async def deal_with_sharktooth(username: str, user_id: int):
 
     crystal_list = await get_crystal_list()
 
-    crystal = choice(list(crystal_list))[0]
+    crystal: str = choice(list(crystal_list))[0]
 
     if is_in_db:
         await add_shark_tooth(username, user_id, crystal)
     else:
         await add_user_to_shark_tooth(username, user_id, crystal)
+    return crystal
 
 
 async def deal_with_VIP(username: str, user_id: int):
