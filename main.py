@@ -380,6 +380,7 @@ class SharkBot:
         self.chat.register_event(ChatEvent.RAID, self.on_raid)
         self.chat.register_command("quote", self.quote_command)
         self.chat.register_command("sharkfact", self.sharkfact_command)
+        self.chat.register_command("restart", self.restart)
 
         # print(self.mod_eventsub_shark._twitch._user_auth_token)
         # print(self.mod_eventsub_shark._twitch._user_auth_scope)
