@@ -346,6 +346,10 @@ class SharkBot:
             await cmd.reply("Only spider can command me to restart")
             return
 
+        await cmd.reply("Restarting and pulling!")
+        await self._do_restart(cmd)
+
+    async def _do_restart(self, cmd: ChatCommand):
         os.environ["PATH"] = get_full_path()
         git_path = shutil.which("git")
         try:
