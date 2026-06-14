@@ -64,8 +64,10 @@ class SharkBot:
 
         self.eventsub_shark: EventSubWebsocket | None = None
         self.eventsub_dys: EventSubWebsocket | None = None
+        self.eventsub_spider: EventSubWebsocket | None = None
         self.mod_eventsub_shark: EventSubWebsocket | None = None
         self.mod_eventsub_dys: EventSubWebsocket | None = None
+        self.mod_event_sub_spider: EventSubWebsocket | None = None
         self.twitch: Twitch | None = None
         self.chat: Chat | None = None
         self.sharkocalypse_twitch: Twitch | None = None
@@ -74,6 +76,8 @@ class SharkBot:
         self.dyslexxik_twitch: Twitch | None = None
         self.dyslexxik_redeem_twitch: Twitch | None = None
         self.dyslexxik_id: str | None = None
+        self.spider_twitch: Twitch | None = None
+        self.spider_id: str | None = None
         self.bot_id: str | None = None
 
     async def setup(self):
@@ -100,6 +104,10 @@ class SharkBot:
         )
         await dys_redeem_helper.bind()
 
+        self.spider_twitch = await Twitch(self.app_id, self.app_secret)
+        spider_twitch_helper = UserAuthenticationStorageHelper(self.spider_twitch, MOD_SCOPE, Path("tokens/spider_mod.json"))
+        await spider_twitch_helper.bind()
+
         # for sharkocalypse
         user = await first(self.sharkocalypse_twitch.get_users(logins=["sharkocalypse"]))
         if user is None:
@@ -118,9 +126,14 @@ class SharkBot:
             raise ValueError("Could not find user: sharkxxbot. Please check for a name change.")
         self.bot_id = user_3.id
 
+        # for spider
+        user_4 = await first(self.sharkocalypse_twitch.get_users(logins=["spiderbyte2007"]))
+        if user_4 is None:
+            raise ValueError("Could not find user: spiderbyte2007. Please check for a name change.")
+        self.spider_id = user_4.id
+
         self.eventsub_shark = EventSubWebsocket(self.sharkocalypse_redeem_twitch)
         self.eventsub_shark.start()
-        print(self.sharkocalypse_id)
 
         await self.eventsub_shark.listen_channel_points_custom_reward_redemption_add(
             broadcaster_user_id=self.sharkocalypse_id, callback=self.on_redemption
@@ -145,6 +158,9 @@ class SharkBot:
 
         self.mod_eventsub_dys: EventSubWebsocket | None = EventSubWebsocket(self.dyslexxik_twitch)
         self.mod_eventsub_dys.start()
+
+        self.mod_event_sub_spider = EventSubWebsocket(self.spider_twitch)
+        self.mod_event_sub_spider.start()
 
         self.chat = await Chat(self.twitch)
 
@@ -380,9 +396,11 @@ class SharkBot:
         assert self.eventsub_shark, "event sub for shark is still None"
         assert self.dyslexxik_id, "dys's ID is still None"
         assert self.sharkocalypse_id, "shark's ID is still None"
+        assert self.spider_id, "Spider's ID is still None"
         assert self.bot_id, "Bot's ID is still None"
         assert self.mod_eventsub_shark, "Shark's mod event sub is not set up properly"
         assert self.mod_eventsub_dys, "Dys's mod event sub is not set up properly"
+        assert self.mod_event_sub_spider, "Spider's mod event sub is not set up properly"
 
         # listen to when the bot is done starting up and ready to join channels
         self.chat.register_event(ChatEvent.READY, self.on_ready)
