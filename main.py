@@ -348,9 +348,9 @@ class SharkBot:
             await cmd.reply(f"Failed: Error {str(e)}")
 
         await cmd.send("Restarting now...")
-
-        subprocess.Popen([sys.executable] + sys.argv)
         await self.close_bot()
+        subprocess.Popen([sys.executable] + sys.argv)
+        asyncio.get_event_loop().stop()
 
     async def close_bot(self):
         assert self.eventsub_dys
@@ -362,6 +362,8 @@ class SharkBot:
         # now we can close the chat bot and the twitch api client
         await self.eventsub_dys.stop()
         await self.eventsub_shark.stop()
+        await self.mod_eventsub_dys.stop()
+        await self.mod_eventsub_shark.stop()
         self.chat.stop()
         await self.twitch.close()
 
