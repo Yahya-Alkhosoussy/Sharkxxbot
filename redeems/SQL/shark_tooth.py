@@ -194,7 +194,7 @@ async def get_messages():
 
 async def add_message(message: str):
     async with aiosqlite.connect("databases/redeems.db") as conn:
-        await conn.execute("INSERT OR IGNORE INTO toth_messages (message) VALUES (?)", (message,))
+        await conn.execute("INSERT OR IGNORE INTO tooth_messages (message) VALUES (?)", (message,))
         await conn.commit()
 
 
