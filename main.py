@@ -337,9 +337,9 @@ class SharkBot:
             if not git_path:
                 await cmd.reply("Cannot find git, try again later")
                 return
-            subprocess.run([git_path, "pull"])
+            subprocess.run([git_path, "pull"], check=True)
             await cmd.reply("Pulled successfully")
-            subprocess.run([sys.executable, "setup.py"])
+            subprocess.run([sys.executable, "setup.py"], check=True)
             await cmd.reply("Successfully installed all dependencies")
         except subprocess.CalledProcessError as e:
             await cmd.reply(f"Failed, error: {e.stderr}")
