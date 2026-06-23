@@ -109,6 +109,15 @@ async def add_crystal(crystal_name: str):
         await conn.commit()
 
 
+async def get_crystal_count(user_id: int) -> int | None:
+    async with aiosqlite.connect("databases/redeems.db") as conn:
+        async with conn.execute("SELECT COUNT(*) FROM crystals WHERE user_id=?", (user_id,)) as cur:
+            result = await cur.fetchone()
+            if result is None:
+                return
+            return result[0]
+
+
 async def get_messages():
     async with aiosqlite.connect("databases/redeems.db") as conn:
         async with conn.execute("SELECT message FROM tooth_messages") as cur:
