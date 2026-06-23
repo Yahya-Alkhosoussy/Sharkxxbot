@@ -211,7 +211,7 @@ class SharkBot:
         if reward.title == "daily shark tooth!":
             message = await deal_with_sharktooth(twitch_name, twitch_id)
             await self.twitch.send_chat_message(
-                broadcaster_id=event.broadcaster_user_id, sender_id=self.bot_id, message=message + f" @{twitch_name}"
+                broadcaster_id=event.broadcaster_user_id, sender_id=self.bot_id, message=message
             )
         elif reward.title == "VIP":
             await deal_with_VIP(twitch_name, twitch_id)
