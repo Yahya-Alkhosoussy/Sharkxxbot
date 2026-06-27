@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from twitchAPI.chat import Chat, ChatCommand, ChatMessage, EventData
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.helper import first
-from twitchAPI.oauth import UserAuthenticationStorageHelper, UserAuthenticator
+from twitchAPI.oauth import UserAuthenticationStorageHelper
 from twitchAPI.object.eventsub import (
     ChannelBanEvent,
     ChannelPointsCustomRewardRedemptionAddEvent,
@@ -51,8 +51,9 @@ USER_SCOPE = [
     AuthScope.MODERATOR_READ_UNBAN_REQUESTS,
     AuthScope.MODERATOR_MANAGE_UNBAN_REQUESTS,
     AuthScope.MODERATOR_READ_VIPS,
+    AuthScope.CLIPS_EDIT,
 ]
-TARGET_CHANNEL = ["sharkocalypse", "dyslexxik", "spiderbyte2007"]
+TARGET_CHANNEL = ["sharkocalypse", "dyslexxik"]
 
 
 class SharkBot:
@@ -64,10 +65,8 @@ class SharkBot:
 
         self.eventsub_shark: EventSubWebsocket | None = None
         self.eventsub_dys: EventSubWebsocket | None = None
-        self.eventsub_spider: EventSubWebsocket | None = None
         self.mod_eventsub_shark: EventSubWebsocket | None = None
         self.mod_eventsub_dys: EventSubWebsocket | None = None
-        self.mod_event_sub_spider: EventSubWebsocket | None = None
         self.twitch: Twitch | None = None
         self.chat: Chat | None = None
         self.sharkocalypse_twitch: Twitch | None = None
@@ -76,8 +75,6 @@ class SharkBot:
         self.dyslexxik_twitch: Twitch | None = None
         self.dyslexxik_redeem_twitch: Twitch | None = None
         self.dyslexxik_id: str | None = None
-        self.spider_twitch: Twitch | None = None
-        self.spider_id: str | None = None
         self.bot_id: str | None = None
 
     async def setup(self):
@@ -92,7 +89,6 @@ class SharkBot:
             self.sharkocalypse_redeem_twitch, BROADCAST_SCOPE, Path("tokens/sharkocalypse_broadcast.json")
         )
         await shark_redeem_helper.bind()
-        token = self.sharkocalypse_redeem_twitch.get_user_auth_token()
 
         self.dyslexxik_twitch = await Twitch(self.app_id, self.app_secret)
         dys_twitch_helper = UserAuthenticationStorageHelper(self.dyslexxik_twitch, MOD_SCOPE, Path("tokens/dyslexxik_mod.json"))
@@ -103,10 +99,6 @@ class SharkBot:
             self.dyslexxik_redeem_twitch, BROADCAST_SCOPE, Path("tokens/dyslexxik_broadcast.json")
         )
         await dys_redeem_helper.bind()
-
-        self.spider_twitch = await Twitch(self.app_id, self.app_secret)
-        spider_twitch_helper = UserAuthenticationStorageHelper(self.spider_twitch, MOD_SCOPE, Path("tokens/spider_mod.json"))
-        await spider_twitch_helper.bind()
 
         # for sharkocalypse
         user = await first(self.sharkocalypse_twitch.get_users(logins=["sharkocalypse"]))
@@ -126,12 +118,6 @@ class SharkBot:
             raise ValueError("Could not find user: sharkxxbot. Please check for a name change.")
         self.bot_id = user_3.id
 
-        # for spider
-        user_4 = await first(self.sharkocalypse_twitch.get_users(logins=["spiderbyte2007"]))
-        if user_4 is None:
-            raise ValueError("Could not find user: spiderbyte2007. Please check for a name change.")
-        self.spider_id = user_4.id
-
         self.eventsub_shark = EventSubWebsocket(self.sharkocalypse_redeem_twitch)
         self.eventsub_shark.start()
 
@@ -147,20 +133,14 @@ class SharkBot:
 
         # Non-redeem section
         self.twitch = await Twitch(self.app_id, self.app_secret)
-        auth = UserAuthenticator(self.twitch, self.user_scope)
-        authentication = await auth.authenticate()
-        assert authentication is not None
-        token, refresh_token = authentication
-        await self.twitch.set_user_authentication(token, self.user_scope, refresh_token)
+        auth = UserAuthenticationStorageHelper(self.twitch, self.user_scope, Path("tokens/bot.json"))
+        await auth.bind()
 
         self.mod_eventsub_shark: EventSubWebsocket | None = EventSubWebsocket(self.sharkocalypse_twitch)
         self.mod_eventsub_shark.start()
 
         self.mod_eventsub_dys: EventSubWebsocket | None = EventSubWebsocket(self.dyslexxik_twitch)
         self.mod_eventsub_dys.start()
-
-        self.mod_event_sub_spider = EventSubWebsocket(self.spider_twitch)
-        self.mod_event_sub_spider.start()
 
         self.chat = await Chat(self.twitch)
 
@@ -247,18 +227,12 @@ class SharkBot:
             channel_info = await self.twitch.get_channel_information(broadcaster_id=raider_id)
             game = channel_info[0].game_name
 
-        if channel_raided != "spiderbyte2007":
-            await self.chat.send_message(
-                room=channel_raided,
-                text=f"{raider_name} is raiding the cult from the realm of {game} with {viewer_count} others."
-                f" Wanna check out their rituals? https://twitch.tv/{raider_name}",
-            )
-            return
         await self.chat.send_message(
             room=channel_raided,
-            text=f"Welcome in raiders! Thank you {raider_name} for the raid from {game} with {viewer_count} others."
-            f" Go check them out!! https://twitch.tv/{raider_name}",
+            text=f"{raider_name} is raiding the cult from the realm of {game} with {viewer_count} others."
+            f" Wanna check out their rituals? https://twitch.tv/{raider_name}",
         )
+        return
 
     async def quote_command(self, cmd: ChatCommand):
         assert cmd.room
@@ -348,6 +322,39 @@ class SharkBot:
                 user_id=event.user_id,
             )
 
+    async def clip_command(self, cmd: ChatCommand):
+        assert self.twitch
+        assert self.sharkocalypse_id
+        assert self.dyslexxik_id
+        assert self.chat
+
+        if not cmd.room:
+            return
+
+        if cmd.room.name == "sharkocalypse":
+            id = self.sharkocalypse_id
+        else:
+            id = self.dyslexxik_id
+
+        try:
+            created_clip = await self.twitch.create_clip(id)
+        except Exception as e:
+            print(f"Got an error making the clip {str(e)}")
+            await cmd.reply("Sorry, failed to make a clip")
+            return
+
+        clip = await first(self.twitch.get_clips(clip_id=[created_clip.id]))
+        if clip is None:
+            for _ in range(60):
+                await asyncio.sleep(1)
+                clip = await first(self.twitch.get_clips(clip_id=[created_clip.id]))
+                if clip is not None:
+                    break
+        if clip is None:
+            await self.chat.send_message(room=cmd.room.name, text="Sorry, but I could not find the created clip")
+            return
+        await self.chat.send_message(room=cmd.room.name, text=clip.url)
+
     async def restart(self, cmd: ChatCommand):
         if cmd.user.name != "spiderbyte2007":
             await cmd.reply("Only spider can command me to restart")
@@ -405,11 +412,9 @@ class SharkBot:
         assert self.eventsub_shark, "event sub for shark is still None"
         assert self.dyslexxik_id, "dys's ID is still None"
         assert self.sharkocalypse_id, "shark's ID is still None"
-        assert self.spider_id, "Spider's ID is still None"
         assert self.bot_id, "Bot's ID is still None"
         assert self.mod_eventsub_shark, "Shark's mod event sub is not set up properly"
         assert self.mod_eventsub_dys, "Dys's mod event sub is not set up properly"
-        assert self.mod_event_sub_spider, "Spider's mod event sub is not set up properly"
 
         # listen to when the bot is done starting up and ready to join channels
         self.chat.register_event(ChatEvent.READY, self.on_ready)
@@ -424,6 +429,7 @@ class SharkBot:
         self.chat.register_command("sharkfact", self.sharkfact_command)
         self.chat.register_command("restart", self.restart)
         self.chat.register_command("braincells", self.braincells_command)
+        self.chat.register_command("clip", self.clip_command)
 
         # print(self.mod_eventsub_shark._twitch._user_auth_token)
         # print(self.mod_eventsub_shark._twitch._user_auth_scope)
