@@ -16,16 +16,18 @@ from twitchAPI.object.eventsub import (
     ChannelBanEvent,
     ChannelPointsCustomRewardRedemptionAddEvent,
     ChannelRaidEvent,
+    ChannelSubscriptionGiftEvent,
     ChannelUnbanEvent,
 )
 from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent
 
 from custom_commands import check_for_command as is_command_existing
+from gift_subs.sql import add_gifted_user, get_gifted_count, is_user_in_db, update_gifted_count
 from mod_action import add_ban, get_banned_users, remove_ban  # noqa
 from quotes import get_quote
 from redeems.redeems import deal_with_sharktooth, deal_with_VIP
-from utils.core import get_full_path
+from utils.core import GiftedSub, TwitchUser, get_full_path
 
 load_dotenv()
 
@@ -34,11 +36,13 @@ APP_SECRET = os.getenv("client_secret")
 MOD_SCOPE = [
     AuthScope.CHAT_READ,
     AuthScope.CHAT_EDIT,
+    AuthScope.CHANNEL_MODERATE,
     AuthScope.MODERATOR_READ_BANNED_USERS,
     AuthScope.MODERATOR_MANAGE_BANNED_USERS,
     AuthScope.MODERATOR_READ_UNBAN_REQUESTS,
     AuthScope.MODERATOR_MANAGE_UNBAN_REQUESTS,
     AuthScope.MODERATOR_READ_VIPS,
+    AuthScope.CHANNEL_READ_SUBSCRIPTIONS,
 ]
 BROADCAST_SCOPE = [AuthScope.CHANNEL_READ_REDEMPTIONS]
 USER_SCOPE = [
@@ -355,6 +359,37 @@ class SharkBot:
             return
         await self.chat.send_message(room=cmd.room.name, text=clip.url)
 
+    async def get_gift_sub_count_command(self, cmd: ChatCommand):
+        try:
+            count = get_gifted_count(TwitchUser(user=cmd.user))
+        except Exception:
+            await cmd.reply("Could not find your gifted subs on the list")
+            return
+        await cmd.reply(f"{cmd.user.name}, you have gifted {count} subs to this channel!")
+
+    async def on_gift_sub(self, _event: ChannelSubscriptionGiftEvent):
+        assert self.sharkocalypse_twitch
+        assert self.chat
+
+        event = _event.event
+        count = event.total
+        if event.user_id is None or event.user_login is None or event.user_name is None:
+            return
+        user = TwitchUser(display=event.user_name, login=event.user_login, id=event.user_id)
+        is_in_db = await is_user_in_db(user)
+        if not is_in_db:
+            await add_gifted_user(user)
+        await update_gifted_count(GiftedSub(user, count))
+        streamer = await first(self.sharkocalypse_twitch.get_users())
+        if streamer is None:
+            raise ValueError("Did sharkocalypse's auth go through?")
+
+        gifted_count = await get_gifted_count(user)
+
+        await self.chat.send_message(
+            room=streamer.login, text=f"Thank you {user.display} for gifting {count} subs, you're now on {gifted_count} subs."
+        )
+
     async def restart(self, cmd: ChatCommand):
         if cmd.user.name != "spiderbyte2007":
             await cmd.reply("Only spider can command me to restart")
@@ -436,6 +471,7 @@ class SharkBot:
 
         await self.mod_eventsub_shark.listen_channel_ban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_ban)
         await self.mod_eventsub_shark.listen_channel_unban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_unban)
+        await self.mod_eventsub_shark.listen_channel_subscription_gift(self.sharkocalypse_id, self.on_gift_sub)
         await self.mod_eventsub_dys.listen_channel_ban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_ban)
         await self.mod_eventsub_dys.listen_channel_unban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_unban)
 
