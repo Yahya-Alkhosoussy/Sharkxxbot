@@ -100,22 +100,27 @@ class SharkBot:
         )
         await dys_redeem_helper.bind()
 
+        # Non-redeem section
+        self.twitch = await Twitch(self.app_id, self.app_secret)
+        auth = UserAuthenticationStorageHelper(self.twitch, self.user_scope, Path("tokens/bot.json"))
+        await auth.bind()
+
         # for sharkocalypse
-        user = await first(self.sharkocalypse_twitch.get_users(logins=["sharkocalypse"]))
+        user = await first(self.sharkocalypse_twitch.get_users())
         if user is None:
-            raise ValueError("Could not find user: sharkocalypse. Please check for name change.")
+            raise ValueError("Could not find user: sharkocalypse. Did the authentication work properly?")
         self.sharkocalypse_id = user.id
 
         # for dyslexxik
-        user_2 = await first(self.sharkocalypse_twitch.get_users(logins=["dyslexxik"]))
+        user_2 = await first(self.dyslexxik_twitch.get_users())
         if user_2 is None:
-            raise ValueError("Could not find user: dyslexxik. Please check for name change.")
+            raise ValueError("Could not find user: dyslexxik. Did authentication work properly?")
         self.dyslexxik_id = user_2.id
 
         # for bot
-        user_3 = await first(self.sharkocalypse_twitch.get_users(logins=["sharkxxbot"]))
+        user_3 = await first(self.twitch.get_users())
         if user_3 is None:
-            raise ValueError("Could not find user: sharkxxbot. Please check for a name change.")
+            raise ValueError("Could not find user: sharkxxbot. Did authentication work properly?")
         self.bot_id = user_3.id
 
         self.eventsub_shark = EventSubWebsocket(self.sharkocalypse_redeem_twitch)
@@ -130,11 +135,6 @@ class SharkBot:
         await self.eventsub_dys.listen_channel_points_custom_reward_redemption_add(
             broadcaster_user_id=self.dyslexxik_id, callback=self.on_redemption
         )
-
-        # Non-redeem section
-        self.twitch = await Twitch(self.app_id, self.app_secret)
-        auth = UserAuthenticationStorageHelper(self.twitch, self.user_scope, Path("tokens/bot.json"))
-        await auth.bind()
 
         self.mod_eventsub_shark: EventSubWebsocket | None = EventSubWebsocket(self.sharkocalypse_twitch)
         self.mod_eventsub_shark.start()
@@ -208,6 +208,22 @@ class SharkBot:
     # async def on_sub(sub: ChatSub):
     #     assert sub.room
     #     print(f"New subscription in {sub.room.name}: \n  Type: {sub.sub_plan} \n  Message: {sub.sub_message}")
+
+    async def get_broadcaster(self, id: str):
+        assert self.sharkocalypse_twitch
+        assert self.sharkocalypse_id
+        assert self.dyslexxik_twitch
+
+        if id == self.sharkocalypse_id:
+            user = await first(self.sharkocalypse_twitch.get_users())
+            if user is None:
+                raise ValueError("Did authentication work properly for sharkocalypse?")
+            return user
+        else:
+            user = await first(self.dyslexxik_twitch.get_users())
+            if user is None:
+                raise ValueError("Did authentication work properly for dyslexxik?")
+            return user
 
     async def on_raid(self, _event: ChannelRaidEvent):
         assert self.twitch
