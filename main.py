@@ -16,12 +16,15 @@ from twitchAPI.object.eventsub import (
     ChannelBanEvent,
     ChannelPointsCustomRewardRedemptionAddEvent,
     ChannelRaidEvent,
+    ChannelSharedChatBeginEvent,
+    ChannelSharedChatEndEvent,
     ChannelUnbanEvent,
 )
 from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent
 
 from custom_commands import check_for_command as is_command_existing
+from exceptions import ClipFail, ClipNotFound
 from mod_action import add_ban, get_banned_users, remove_ban  # noqa
 from quotes import get_quote
 from redeems.redeems import deal_with_sharktooth, deal_with_VIP
@@ -76,6 +79,7 @@ class SharkBot:
         self.dyslexxik_redeem_twitch: Twitch | None = None
         self.dyslexxik_id: str | None = None
         self.bot_id: str | None = None
+        self.shared_chat = False
 
     async def setup(self):
         self.sharkocalypse_twitch = await Twitch(self.app_id, self.app_secret)
@@ -323,10 +327,11 @@ class SharkBot:
             )
 
     async def clip_command(self, cmd: ChatCommand):
-        assert self.twitch
         assert self.sharkocalypse_id
         assert self.dyslexxik_id
         assert self.chat
+        assert self.sharkocalypse_twitch
+        assert self.dyslexxik_twitch
 
         if not cmd.room:
             return
@@ -336,12 +341,54 @@ class SharkBot:
         else:
             id = self.dyslexxik_id
 
+        if self.shared_chat:
+            try:
+                clip = await self.get_clip(self.sharkocalypse_id)
+            except ClipFail as e:
+                await cmd.reply(f"Could create clip. Error: {str(e)}")
+                return
+            except ClipNotFound:
+                await cmd.reply("Could not find the clip")
+                return
+
+            shark = await first(self.sharkocalypse_twitch.get_users())
+            if shark is None:
+                return
+            await self.chat.send_message(room=shark.login, text=clip.url)
+
+            try:
+                clip_2 = await self.get_clip(self.sharkocalypse_id)
+            except ClipFail as e:
+                await cmd.reply(f"Could create clip. Error: {str(e)}")
+                return
+            except ClipNotFound:
+                await cmd.reply("Could not find the clip")
+                return
+
+            dys = await first(self.dyslexxik_twitch.get_users())
+            if dys is None:
+                return
+            await self.chat.send_message(room=dys.login, text=clip_2.url)
+            return
+
+        try:
+            clip = await self.get_clip(id)
+        except ClipFail as e:
+            await cmd.reply(f"Could create clip. Error: {str(e)}")
+            return
+        except ClipNotFound:
+            await cmd.reply("Could not find the clip")
+            return
+
+        await self.chat.send_message(room=cmd.room.name, text=clip.url)
+
+    async def get_clip(self, id: str):
+        assert self.twitch
+
         try:
             created_clip = await self.twitch.create_clip(id)
         except Exception as e:
-            print(f"Got an error making the clip {str(e)}")
-            await cmd.reply("Sorry, failed to make a clip")
-            return
+            raise ClipFail(str(e))
 
         clip = await first(self.twitch.get_clips(clip_id=[created_clip.id]))
         if clip is None:
@@ -351,9 +398,20 @@ class SharkBot:
                 if clip is not None:
                     break
         if clip is None:
-            await self.chat.send_message(room=cmd.room.name, text="Sorry, but I could not find the created clip")
+            raise ClipNotFound()
+        return clip
+
+    async def toggle_shared_on(self, _event: ChannelSharedChatBeginEvent):
+        event = _event.event
+        if (event.broadcaster_user_id == self.sharkocalypse_id and event.host_broadcaster_user_id == self.dyslexxik_id) or (
+            event.broadcaster_user_id == self.dyslexxik_id and event.host_broadcaster_user_id == self.sharkocalypse_id
+        ):
+            # This will only trigger if dyslexxik is hosting a shared chat with sharkocalypse or the other way around
+            self.shared_chat = True
             return
-        await self.chat.send_message(room=cmd.room.name, text=clip.url)
+
+    async def toggle_shared_off(self, _event: ChannelSharedChatEndEvent):
+        self.shared_chat = False
 
     async def restart(self, cmd: ChatCommand):
         if cmd.user.name != "spiderbyte2007":
@@ -436,8 +494,13 @@ class SharkBot:
 
         await self.mod_eventsub_shark.listen_channel_ban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_ban)
         await self.mod_eventsub_shark.listen_channel_unban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_unban)
+        await self.mod_eventsub_shark.listen_channel_shared_chat_begin(self.sharkocalypse_id, self.toggle_shared_on)
+        await self.mod_eventsub_shark.listen_channel_shared_chat_end(self.sharkocalypse_id, self.toggle_shared_off)
+
         await self.mod_eventsub_dys.listen_channel_ban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_ban)
         await self.mod_eventsub_dys.listen_channel_unban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_unban)
+        await self.mod_eventsub_dys.listen_channel_shared_chat_begin(self.dyslexxik_id, self.toggle_shared_on)
+        await self.mod_eventsub_dys.listen_channel_shared_chat_end(self.dyslexxik_id, self.toggle_shared_off)
 
         # we are done with our setup, lets start this bot up!
         self.chat.start()
