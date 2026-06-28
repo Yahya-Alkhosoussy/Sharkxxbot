@@ -79,6 +79,16 @@ async def add_shark_tooth(username: str, user_id: int, crystal: str):
             await conn.commit()
 
 
+async def get_shark_teeth(user_id: int):
+    async with aiosqlite.connect("databases/redeems.db") as conn:
+        async with conn.execute("SELECT type, count FROM shark_tooth WHERE user_id=?", (user_id,)) as cur:
+            results = await cur.fetchall()
+            tooth_count: dict[str, int] = {}
+            for result in results:
+                tooth_count[result[0]] = result[1]
+            return tooth_count
+
+
 async def check_for_username_change(username: str, user_id: int, conn: aiosqlite.Connection) -> None | bool:
     async with conn.execute("SELECT username FROM shark_tooth WHERE user_id=?", (user_id,)) as cur:
         result = await cur.fetchone()
