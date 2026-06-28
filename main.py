@@ -267,13 +267,13 @@ class SharkBot:
     async def shark_teeth_command(self, cmd: ChatCommand):
         teeth_dict = await get_shark_teeth(int(cmd.user.id))
         messages = []
-        message = "Here are all your shark teeth: \n"
+        message = "Here are all your shark teeth:"
         for type, count in teeth_dict.items():
-            if len(message) + len(f"{type}: {count} \n") <= 500:
-                message += f"{type}: {count} \n"
+            if len(message) + len(f"{type}: {count}, ") <= 500:
+                message += f"{type}: {count}, "
             else:
                 messages.append(message)
-                message = f"{type}: {count} \n"
+                message = f"{type}: {count}, "
         messages.append(message)
 
         for _message in messages:
