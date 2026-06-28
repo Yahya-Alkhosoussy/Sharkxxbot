@@ -446,6 +446,7 @@ class SharkBot:
         self.chat.register_command("restart", self.restart)
         self.chat.register_command("braincells", self.braincells_command)
         self.chat.register_command("clip", self.clip_command)
+        self.chat.register_command("teeth", self.shark_teeth_command)
 
         # print(self.mod_eventsub_shark._twitch._user_auth_token)
         # print(self.mod_eventsub_shark._twitch._user_auth_scope)
