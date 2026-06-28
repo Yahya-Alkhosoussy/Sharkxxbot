@@ -25,6 +25,7 @@ from custom_commands import check_for_command as is_command_existing
 from mod_action import add_ban, get_banned_users, remove_ban  # noqa
 from quotes import get_quote
 from redeems.redeems import deal_with_sharktooth, deal_with_VIP
+from redeems.SQL.shark_tooth import get_shark_teeth
 from utils.core import get_full_path
 
 load_dotenv()
@@ -262,6 +263,21 @@ class SharkBot:
                 index = random.randint(0, how_many)
                 name = shark_names[index]
                 await cmd.reply(f"Your random shark fact is for {name} and it is {facts[name]}")
+
+    async def shark_teeth_command(self, cmd: ChatCommand):
+        teeth_dict = await get_shark_teeth(int(cmd.user.id))
+        messages = []
+        message = "Here are all your shark teeth: \n"
+        for type, count in teeth_dict.items():
+            if len(message) + len(f"{type}: {count} \n") <= 500:
+                message += f"{type}: {count} \n"
+            else:
+                messages.append(message)
+                message = f"{type}: {count} \n"
+        messages.append(message)
+
+        for _message in messages:
+            await cmd.reply(_message)
 
     async def on_ban(self, banEvent: ChannelBanEvent):
         assert self.dyslexxik_twitch
