@@ -92,11 +92,11 @@ async def get_gifted_count(user: TwitchUser) -> int:
             return result[0]
 
 
-async def get_rewards() -> dict[str, int]:
+async def get_rewards() -> dict[int, str]:
     async with connect(db_path) as conn:
         async with conn.execute("SELECT reward, sub_count FROM rewards") as cur:
             results = await cur.fetchall()
-            returns: dict[str, int] = {}
+            returns: dict[int, str] = {}
             for result in results:
-                returns[result[0]] = result[1]
+                returns[result[1]] = result[0]
             return returns
