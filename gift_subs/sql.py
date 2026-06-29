@@ -22,6 +22,24 @@ async def init_db():
                 gifted_count INTEGER DEFAULT 0
             )"""
         )
+        await conn.execute(
+            """CREATE TABLE IF NOT EXISTS rewards
+            (
+                id INTEGER PRIMARY KEY,
+                reward TEXT,
+                sub_count INTEGER UNIQUE
+            )"""
+        )
+        # default values
+        rewards = [
+            "A shark emote of your choice commissioned (discussed in DMs)",
+            "Custom art of Shark with YOUR input commissioned",
+            "Date night with shark. Have a 4 hour session where you and shark play games together off stream",
+        ]
+        counts = [20, 50, 100]
+        for reward, count in zip(rewards, counts):
+            await conn.execute("INSERT OR IGNORE INTO rewards (reward, sub_count) VALUES (?, ?)", (reward, count))
+
         await conn.commit()
 
 
