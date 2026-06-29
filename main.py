@@ -23,7 +23,7 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent
 
 from custom_commands import check_for_command as is_command_existing
-from gift_subs.sql import add_gifted_user, get_gifted_count, is_user_in_db, update_gifted_count
+from gift_subs.sql import add_gifted_user, get_gifted_count, get_rewards, is_user_in_db, update_gifted_count
 from mod_action import add_ban, get_banned_users, remove_ban  # noqa
 from quotes import get_quote
 from redeems.redeems import deal_with_sharktooth, deal_with_VIP
@@ -379,6 +379,9 @@ class SharkBot:
         is_in_db = await is_user_in_db(user)
         if not is_in_db:
             await add_gifted_user(user)
+
+        old_gift_sub_count = await get_gifted_count(user)
+
         await update_gifted_count(GiftedSub(user, count))
         streamer = await first(self.sharkocalypse_twitch.get_users())
         if streamer is None:
@@ -386,9 +389,69 @@ class SharkBot:
 
         gifted_count = await get_gifted_count(user)
 
-        await self.chat.send_message(
-            room=streamer.login, text=f"Thank you {user.display} for gifting {count} subs, you're now on {gifted_count} subs."
-        )
+        rewards = await get_rewards()
+
+        rewards_gotten = []
+
+        if gifted_count > 100 and old_gift_sub_count < 100:
+            gifted_count -= 100
+            rewards_gotten.append(rewards[100])
+            if gifted_count > 20:
+                rewards_gotten.append(rewards[20])
+            if gifted_count > 50:
+                rewards_gotten.append(rewards[50])
+            if gifted_count > 100:
+                rewards_gotten.append(rewards[100])
+
+            await self.chat.send_message(
+                room=streamer.login,
+                text=f"Thank you {user.display} for gifting {count} subs, you're now on {gifted_count} subs."
+                f"and unlocked the following reward(s) {', '.join(rewards_gotten)}",
+            )
+            return
+
+        looked_at = False
+
+        if gifted_count > 100 and old_gift_sub_count > 100:
+            while old_gift_sub_count > 100:
+                old_gift_sub_count -= 100
+                gifted_count -= 100
+
+            if gifted_count > 20:
+                rewards_gotten.append(rewards[20])
+            if gifted_count > 50:
+                rewards_gotten.append(rewards[50])
+            if gifted_count > 100:
+                rewards_gotten.append(rewards[100])
+
+            if rewards_gotten:
+                await self.chat.send_message(
+                    room=streamer.login,
+                    text=f"Thank you {user.display} for gifting {count} subs, you're now on {gifted_count} subs."
+                    f"and unlocked the following reward(s) {', '.join(rewards_gotten)}",
+                )
+                return
+            looked_at = True
+
+        if not looked_at:
+            if gifted_count > 20:
+                rewards_gotten.append(rewards[20])
+            if gifted_count > 50:
+                rewards_gotten.append(rewards[50])
+            if gifted_count > 100:
+                rewards_gotten.append(rewards[100])
+
+            if rewards_gotten:
+                await self.chat.send_message(
+                    room=streamer.login,
+                    text=f"Thank you {user.display} for gifting {count} subs, you're now on {gifted_count} subs."
+                    f"and unlocked the following reward(s) {', '.join(rewards_gotten)}",
+                )
+
+            await self.chat.send_message(
+                room=streamer.login,
+                text=f"Thank you {user.display} for gifting {count} subs, you're now on {gifted_count} subs.",
+            )
 
     async def restart(self, cmd: ChatCommand):
         if cmd.user.name != "spiderbyte2007":
