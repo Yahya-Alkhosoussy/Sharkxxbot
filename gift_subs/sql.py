@@ -32,9 +32,9 @@ async def init_db():
         )
         # default values
         rewards = [
-            "A shark emote of your choice commissioned (discussed in DMs)",
-            "Custom art of Shark with YOUR input commissioned",
-            "Date night with shark. Have a 4 hour session where you and shark play games together off stream",
+            "custom emote",
+            "custom art",
+            "date night with shark",
         ]
         counts = [20, 50, 100]
         for reward, count in zip(rewards, counts):
