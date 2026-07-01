@@ -61,13 +61,16 @@ async def add_gifted_user(user: TwitchUser):
 
 async def is_user_in_db(user: TwitchUser):
     async with connect(db_path) as conn:
-        async with conn.execute("SELECT COUNT(*) FROM gifted WHERE twitch_id=?", (user.id)) as cur:
-            result = await cur.fetchone()
-            if result is None:
-                return False
-            if result[0] == 0:
-                return False
-            return True
+        try:
+            async with conn.execute("SELECT COUNT(*) FROM gifted WHERE twitch_id=?", (user.id,)) as cur:
+                result = await cur.fetchone()
+                if result is None:
+                    return False
+                if result[0] == 0:
+                    return False
+                return True
+        except Exception as e:
+            print(str(e))
 
 
 async def add_twitch_id(user: TwitchUser):
@@ -102,7 +105,7 @@ async def update_gifted_count(sub: GiftedSub):
 
 async def check_for_username_changed(user: TwitchUser):
     async with connect(db_path) as conn:
-        async with conn.execute("SELECT name FROM gifted WHERE twitch_id=?", (user.id)) as cur:
+        async with conn.execute("SELECT name FROM gifted WHERE twitch_id=?", (user.id,)) as cur:
             result = await cur.fetchone()
             if result is None:
                 raise Exception("Name not found")
@@ -155,7 +158,7 @@ if __name__ == "__main__":
         }
         async with connect(db_path) as conn:
             for name, count in rewards.items():
-                await conn.execute("INSERT OR IGNORE INTO gifted (name, gifted_count) VALUES (?, ?)", (name, count))
+                await conn.execute("INSERT OR IGNORE INTO gifted (name, gifted_count) VALUES (?, ?)", (name.lower(), count))
 
             await conn.commit()
 
