@@ -387,7 +387,9 @@ class SharkBot:
 
     async def get_gift_sub_count_command(self, cmd: ChatCommand):
         try:
-            count = get_gifted_count(TwitchUser(user=cmd.user))
+            user = TwitchUser(user=cmd.user)
+            await add_twitch_id(user)
+            count = await get_gifted_count(user)
         except Exception:
             await cmd.reply("Could not find your gifted subs on the list")
             return
@@ -571,7 +573,7 @@ class SharkBot:
         self.chat.register_command("gifted", self.get_gift_sub_count_command)
 
         # print(self.mod_eventsub_shark._twitch._user_auth_token)
-        print(self.mod_eventsub_dys._twitch._user_auth_scope)
+        # print(self.mod_eventsub_dys._twitch._user_auth_scope)
 
         await self.mod_eventsub_shark.listen_channel_ban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_ban)
         await self.mod_eventsub_shark.listen_channel_unban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_unban)
