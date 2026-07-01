@@ -27,9 +27,8 @@ from gift_subs.sql import add_twitch_id, get_gifted_count, get_rewards, update_g
 from mod_action import add_ban, get_banned_users, remove_ban  # noqa
 from quotes import get_quote
 from redeems.redeems import deal_with_sharktooth, deal_with_VIP
-from utils.core import GiftedSub, TwitchUser, get_full_path
 from redeems.SQL.shark_tooth import get_shark_teeth
-from utils.core import get_full_path
+from utils.core import GiftedSub, TwitchUser, get_full_path
 
 load_dotenv()
 
@@ -562,12 +561,14 @@ class SharkBot:
         # listen to a raid
         await self.eventsub_shark.listen_channel_raid(self.on_raid, to_broadcaster_user_id=self.sharkocalypse_id)
         await self.eventsub_dys.listen_channel_raid(self.on_raid, to_broadcaster_user_id=self.dyslexxik_id)
+
         self.chat.register_command("quote", self.quote_command)
         self.chat.register_command("sharkfact", self.sharkfact_command)
         self.chat.register_command("restart", self.restart)
         self.chat.register_command("braincells", self.braincells_command)
         self.chat.register_command("clip", self.clip_command)
         self.chat.register_command("teeth", self.shark_teeth_command)
+        self.chat.register_command("gifted", self.get_gift_sub_count_command)
 
         # print(self.mod_eventsub_shark._twitch._user_auth_token)
         print(self.mod_eventsub_dys._twitch._user_auth_scope)
