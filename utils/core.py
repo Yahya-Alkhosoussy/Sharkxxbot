@@ -1,6 +1,26 @@
 import os
 import sys
 
+from twitchAPI.chat import ChatUser
+
+
+class TwitchUser:
+    def __init__(self, user: ChatUser | None = None, display: str = "", login: str = "", id: str = ""):
+        if user is None:
+            self.display = display
+            self.login = login
+            self.id = id
+            return
+        self.display = user.display_name
+        self.login = user.name
+        self.id = user.id
+
+
+class GiftedSub:
+    def __init__(self, user: TwitchUser, gifted_count: int):
+        self.user = user
+        self.gifted_count = gifted_count
+
 
 def get_full_path():
     if sys.platform == "win32":

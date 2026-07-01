@@ -16,15 +16,18 @@ from twitchAPI.object.eventsub import (
     ChannelBanEvent,
     ChannelPointsCustomRewardRedemptionAddEvent,
     ChannelRaidEvent,
+    ChannelSubscriptionGiftEvent,
     ChannelUnbanEvent,
 )
 from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent
 
 from custom_commands import check_for_command as is_command_existing
+from gift_subs.sql import add_twitch_id, get_gifted_count, get_rewards, update_gifted_count
 from mod_action import add_ban, get_banned_users, remove_ban  # noqa
 from quotes import get_quote
 from redeems.redeems import deal_with_sharktooth, deal_with_VIP
+from utils.core import GiftedSub, TwitchUser, get_full_path
 from redeems.SQL.shark_tooth import get_shark_teeth
 from utils.core import get_full_path
 
@@ -32,9 +35,21 @@ load_dotenv()
 
 APP_ID = os.getenv("client_id")
 APP_SECRET = os.getenv("client_secret")
+SHARK_MOD_SCOPE = [
+    AuthScope.CHAT_READ,
+    AuthScope.CHAT_EDIT,
+    AuthScope.CHANNEL_MODERATE,
+    AuthScope.MODERATOR_READ_BANNED_USERS,
+    AuthScope.MODERATOR_MANAGE_BANNED_USERS,
+    AuthScope.MODERATOR_READ_UNBAN_REQUESTS,
+    AuthScope.MODERATOR_MANAGE_UNBAN_REQUESTS,
+    AuthScope.MODERATOR_READ_VIPS,
+    AuthScope.CHANNEL_READ_SUBSCRIPTIONS,
+]
 MOD_SCOPE = [
     AuthScope.CHAT_READ,
     AuthScope.CHAT_EDIT,
+    AuthScope.CHANNEL_MODERATE,
     AuthScope.MODERATOR_READ_BANNED_USERS,
     AuthScope.MODERATOR_MANAGE_BANNED_USERS,
     AuthScope.MODERATOR_READ_UNBAN_REQUESTS,
@@ -81,7 +96,7 @@ class SharkBot:
     async def setup(self):
         self.sharkocalypse_twitch = await Twitch(self.app_id, self.app_secret)
         shark_twitch_helper = UserAuthenticationStorageHelper(
-            self.sharkocalypse_twitch, MOD_SCOPE, Path("tokens/sharkocalypse_mod.json")
+            self.sharkocalypse_twitch, SHARK_MOD_SCOPE, Path("tokens/sharkocalypse_mod.json")
         )
         await shark_twitch_helper.bind()
 
@@ -371,6 +386,112 @@ class SharkBot:
             return
         await self.chat.send_message(room=cmd.room.name, text=clip.url)
 
+    async def get_gift_sub_count_command(self, cmd: ChatCommand):
+        try:
+            count = get_gifted_count(TwitchUser(user=cmd.user))
+        except Exception:
+            await cmd.reply("Could not find your gifted subs on the list")
+            return
+        await cmd.reply(f"{cmd.user.name}, you have gifted {count} subs to this channel!")
+
+    async def on_gift_sub(self, _event: ChannelSubscriptionGiftEvent):
+        assert self.sharkocalypse_twitch
+        assert self.chat
+
+        event = _event.event
+        count = event.total
+        if event.user_id is None or event.user_login is None or event.user_name is None:
+            return
+        user = TwitchUser(display=event.user_name, login=event.user_login, id=event.user_id)
+        await add_twitch_id(user)
+
+        old_gift_sub_count = await get_gifted_count(user)
+
+        await update_gifted_count(GiftedSub(user, count))
+        streamer = await first(self.sharkocalypse_twitch.get_users())
+        if streamer is None:
+            raise ValueError("Did sharkocalypse's auth go through?")
+
+        gifted_count = await get_gifted_count(user)
+
+        rewards_gotten = await self.calculate_rewards(old_gift_sub_count, gifted_count)
+
+        if rewards_gotten:
+            custom_emote = "custom emote" in rewards_gotten
+            custom_art = "custom art" in rewards_gotten
+            date_night = "date night with shark" in rewards_gotten
+            rewards_literal = ["custom emote", "custom art", "date night with shark"]
+            custom_emote_str = (
+                f"{rewards_gotten[rewards_literal[0]]} custom emote{'s' if rewards_gotten[rewards_literal[0]] else ''}"
+                if custom_emote
+                else ""
+            )
+            custom_art_str = (
+                f"{',' if custom_emote else ''}"
+                f"{rewards_gotten[rewards_literal[0]]} custom art{'s' if rewards_gotten[rewards_literal[0]] else ''}"
+                if custom_art
+                else ""
+            )
+            date_night_str = (
+                f"{',' if custom_emote or custom_art else ''}"
+                f", {rewards_gotten[rewards_literal[0]]} date night{'s' if rewards_gotten[rewards_literal[0]] else ''} with shark"  # noqa
+                if date_night
+                else ""
+            )
+            normal_msg = (
+                f"Your tithe has been accepted, and in return They have bestowed upon you a "
+                f"{custom_emote_str}"
+                f"{custom_art_str}"
+                f"{date_night_str}"
+                "with Shark. The old gods are satisfied... for now. Shark with reach out on their behalf."
+            )
+            await self.chat.send_message(room=streamer.login, text=normal_msg)
+
+        await self.chat.send_message(
+            room=streamer.login,
+            text=f"Thank you {user.display} for gifting {count} subs, you're now on {gifted_count} subs.",
+        )
+
+    async def calculate_rewards(self, old_gift_sub_count: int, new_gift_sub_count: int):  # noqa: C901
+        rewards_gotten: dict[str, int] = {}
+        rewards = await get_rewards()
+
+        old_cycles = old_gift_sub_count // 100
+        new_cycles = new_gift_sub_count // 100
+
+        # normalise
+        old_pos = old_gift_sub_count % 100
+        new_pos = new_gift_sub_count % 100
+
+        # Calculate the 100 milestones
+        for cycle in range(new_cycles - old_cycles):
+            # Position within this cycle we're coming into
+            old_cycle_pos = old_pos if cycle == old_cycles else 0
+            # Position within this cycle we're going to
+            new_cycle_pos = new_pos if cycle == new_cycles else 99
+
+            for threshold in (20, 50):
+                if old_cycle_pos < threshold <= new_cycle_pos:
+                    if rewards_gotten.get(rewards[threshold]):
+                        rewards_gotten[rewards[threshold]] += 1
+                    else:
+                        rewards_gotten[rewards[threshold]] = 1
+
+            if cycle < new_cycles:
+                if rewards_gotten.get(rewards[100]):
+                    rewards_gotten[rewards[100]] += 1
+                else:
+                    rewards_gotten[rewards[100]] = 1
+        if new_cycles != old_cycles:  # if the for loop went through:
+            return rewards_gotten
+        for threshold in (20, 50):
+            if old_pos < threshold <= new_pos:
+                if rewards_gotten.get(rewards[threshold]):
+                    rewards_gotten[rewards[threshold]] += 1
+                else:
+                    rewards_gotten[rewards[threshold]] = 1
+        return rewards_gotten
+
     async def restart(self, cmd: ChatCommand):
         if cmd.user.name != "spiderbyte2007":
             await cmd.reply("Only spider can command me to restart")
@@ -449,10 +570,12 @@ class SharkBot:
         self.chat.register_command("teeth", self.shark_teeth_command)
 
         # print(self.mod_eventsub_shark._twitch._user_auth_token)
-        # print(self.mod_eventsub_shark._twitch._user_auth_scope)
+        print(self.mod_eventsub_dys._twitch._user_auth_scope)
 
         await self.mod_eventsub_shark.listen_channel_ban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_ban)
         await self.mod_eventsub_shark.listen_channel_unban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_unban)
+        await self.mod_eventsub_shark.listen_channel_subscription_gift(self.sharkocalypse_id, self.on_gift_sub)
+        print("Stuff for shark is done")
         await self.mod_eventsub_dys.listen_channel_ban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_ban)
         await self.mod_eventsub_dys.listen_channel_unban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_unban)
 
@@ -469,5 +592,6 @@ class SharkBot:
 assert APP_ID
 assert APP_SECRET
 
-bot = SharkBot(APP_ID, APP_SECRET, USER_SCOPE, TARGET_CHANNEL)
-asyncio.run(bot.run())
+if __name__ == "__main__":  # to allow testing via terminal
+    bot = SharkBot(APP_ID, APP_SECRET, USER_SCOPE, TARGET_CHANNEL)
+    asyncio.run(bot.run())
