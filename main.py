@@ -23,7 +23,7 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope, ChatEvent
 
 from custom_commands import check_for_command as is_command_existing
-from gift_subs.sql import add_gifted_user, get_gifted_count, get_rewards, is_user_in_db, update_gifted_count
+from gift_subs.sql import add_twitch_id, get_gifted_count, get_rewards, update_gifted_count
 from mod_action import add_ban, get_banned_users, remove_ban  # noqa
 from quotes import get_quote
 from redeems.redeems import deal_with_sharktooth, deal_with_VIP
@@ -386,9 +386,7 @@ class SharkBot:
         if event.user_id is None or event.user_login is None or event.user_name is None:
             return
         user = TwitchUser(display=event.user_name, login=event.user_login, id=event.user_id)
-        is_in_db = await is_user_in_db(user)
-        if not is_in_db:
-            await add_gifted_user(user)
+        await add_twitch_id(user)
 
         old_gift_sub_count = await get_gifted_count(user)
 
