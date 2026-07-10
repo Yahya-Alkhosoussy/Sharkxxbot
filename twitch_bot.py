@@ -578,7 +578,6 @@ class SharkBot:
         await self.mod_eventsub_shark.listen_channel_ban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_ban)
         await self.mod_eventsub_shark.listen_channel_unban(broadcaster_user_id=self.sharkocalypse_id, callback=self.on_unban)
         await self.mod_eventsub_shark.listen_channel_subscription_gift(self.sharkocalypse_id, self.on_gift_sub)
-        print("Stuff for shark is done")
         await self.mod_eventsub_dys.listen_channel_ban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_ban)
         await self.mod_eventsub_dys.listen_channel_unban(broadcaster_user_id=self.dyslexxik_id, callback=self.on_unban)
 
