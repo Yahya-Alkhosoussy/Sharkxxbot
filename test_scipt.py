@@ -1,6 +1,6 @@
 import asyncio
 
-from main import APP_ID, APP_SECRET, TARGET_CHANNEL, USER_SCOPE, SharkBot
+from twitch_bot import APP_ID, APP_SECRET, TARGET_CHANNEL, USER_SCOPE, SharkBot
 
 bot = SharkBot(APP_ID, APP_SECRET, USER_SCOPE, TARGET_CHANNEL)  # type: ignore
 

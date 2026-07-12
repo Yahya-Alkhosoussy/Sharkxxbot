@@ -2,3 +2,4 @@ python-dotenv
 twitchAPI
 aiosqlite
 matplotlib
+discord
