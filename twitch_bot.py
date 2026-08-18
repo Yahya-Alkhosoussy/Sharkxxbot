@@ -265,18 +265,17 @@ class SharkBot:
     async def sharkfact_command(self, cmd: ChatCommand):
         file_path = Path(__file__)
         database = file_path.parent.parent / "Shark-Bot" / "databases" / "shark_game.db"
-        async with aiosqlite.connect(database) as conn:
-            async with conn.execute("SELECT name, fact FROM sharks") as cur:
-                results = await cur.fetchall()
-                facts: dict = {}  # shark name -> fact
-                shark_names = []
-                for result in results:
-                    facts[result[0]] = {result[1]}
-                    shark_names.append(result[0])
-                how_many = len(shark_names)
-                index = random.randint(0, how_many)
-                name = shark_names[index]
-                await cmd.reply(f"Your random shark fact is for {name} and it is {facts[name]}")
+        async with aiosqlite.connect(database) as conn, conn.execute("SELECT name, fact FROM sharks") as cur:
+            results = await cur.fetchall()
+            facts: dict = {}  # shark name -> fact
+            shark_names = []
+            for result in results:
+                facts[result[0]] = {result[1]}
+                shark_names.append(result[0])
+            how_many = len(shark_names)
+            index = random.randint(0, how_many)
+            name = shark_names[index]
+            await cmd.reply(f"Your random shark fact is for {name} and it is {facts[name]}")
 
     async def shark_teeth_command(self, cmd: ChatCommand):
         teeth_dict = await get_shark_teeth(int(cmd.user.id))
@@ -369,7 +368,7 @@ class SharkBot:
         try:
             created_clip = await self.twitch.create_clip(id)
         except Exception as e:
-            print(f"Got an error making the clip {str(e)}")
+            print(f"Got an error making the clip {e}")
             await cmd.reply("Sorry, failed to make a clip")
             return
 
@@ -508,18 +507,22 @@ class SharkBot:
             if not git_path:
                 await cmd.reply("Cannot find git, try again later")
                 return
-            subprocess.run([git_path, "pull"], check=True)
+            proc = await asyncio.create_subprocess_exec(git_path, "pull")
+            if proc.returncode != 0 and proc.returncode is not None:
+                raise subprocess.CalledProcessError(proc.returncode, "ls")
             await cmd.send("Pulled successfully")
-            subprocess.run([sys.executable, "setup.py"], check=True)
+            proc = await asyncio.create_subprocess_exec(sys.executable, "setup.py")
+            if proc.returncode != 0 and proc.returncode is not None:
+                raise subprocess.CalledProcessError(proc.returncode, "ls")
             await cmd.send("Successfully installed all dependencies")
         except subprocess.CalledProcessError as e:
             await cmd.send(f"Failed, error: {e.stderr}")
         except Exception as e:
-            await cmd.send(f"Failed: Error {str(e)}")
+            await cmd.send(f"Failed: Error {e}")
 
         await cmd.send("Restarting now...")
         await self.close_bot()
-        subprocess.Popen([sys.executable] + sys.argv)
+        await asyncio.create_subprocess_exec(sys.executable, *sys.argv)
         asyncio.get_event_loop().stop()
 
     async def close_bot(self):
