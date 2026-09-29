@@ -20,3 +20,6 @@ wheels/
 *.lock
 .python-version
 test images
+
+# Mac stuff
+.DS_Store
