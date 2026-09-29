@@ -44,14 +44,14 @@ async def edit_command_reply(command_id: int, command_reply: str):
         await conn.commit()
 
 
-async def check_for_command(command_name: str, channel: str) -> str | bool:
+async def check_for_command(command_name: str, channel: str) -> tuple[str, str] | bool:
     async with aiosqlite.connect(DB_PATH) as conn:
         async with conn.execute(
-            "SELECT reply FROM commands WHERE name=? AND active=? AND streamer=?", (command_name, True, channel)
+            "SELECT reply, user_level FROM commands WHERE name=? AND active=? AND streamer=?", (command_name, True, channel)
         ) as cur:
             reply = await cur.fetchone()
             if reply:
-                return reply[0]
+                return reply[0], reply[1]
     return False
 
 
