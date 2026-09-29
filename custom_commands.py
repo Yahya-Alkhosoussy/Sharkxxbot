@@ -2,6 +2,8 @@ import asyncio
 
 import aiosqlite
 
+from utils.core import CommandLevels
+
 DB_PATH = "databases/chat_commands.db"
 
 
@@ -44,14 +46,14 @@ async def edit_command_reply(command_id: int, command_reply: str):
         await conn.commit()
 
 
-async def check_for_command(command_name: str, channel: str) -> tuple[str, str] | bool:
+async def check_for_command(command_name: str, channel: str) -> tuple[str, CommandLevels] | bool:
     async with aiosqlite.connect(DB_PATH) as conn:
         async with conn.execute(
             "SELECT reply, user_level FROM commands WHERE name=? AND active=? AND streamer=?", (command_name, True, channel)
         ) as cur:
             reply = await cur.fetchone()
             if reply:
-                return reply[0], reply[1]
+                return reply[0], CommandLevels(reply[1].lower())
     return False
 
 

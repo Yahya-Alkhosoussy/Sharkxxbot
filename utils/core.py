@@ -1,5 +1,6 @@
 import os
 import sys
+from enum import StrEnum
 
 from twitchAPI.chat import ChatUser
 
@@ -64,3 +65,11 @@ def get_full_path():
             deduped.append(p)
 
     return separator.join(deduped)
+
+
+class CommandLevels(StrEnum):
+    EVERYONE = "everyone"
+    SUBSCRIBER = "subscriber"
+    VIP = "vip"
+    MOD = "moderator"
+    STREAMER = "broadcaster"

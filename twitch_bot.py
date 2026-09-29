@@ -28,7 +28,7 @@ from mod_action import add_ban, get_banned_users, remove_ban  # noqa
 from quotes import get_quote
 from redeems.redeems import deal_with_sharktooth, deal_with_VIP
 from redeems.SQL.shark_tooth import get_shark_teeth
-from utils.core import GiftedSub, TwitchUser, get_full_path
+from utils.core import CommandLevels, GiftedSub, TwitchUser, get_full_path
 
 load_dotenv()
 
@@ -211,13 +211,44 @@ class SharkBot:
         elif reward.title == "VIP":
             await deal_with_VIP(twitch_name, twitch_id)
 
+    def __is_command_level_met(self, command_level: CommandLevels, message: ChatMessage) -> bool:
+        assert message.room
+        match command_level:
+            case CommandLevels.EVERYONE:
+                return True
+            case CommandLevels.MOD:
+                is_mod = message.user.mod or any(b in message.user.badges for b in ("moderator", "broadcaster"))
+                if is_mod:
+                    return True
+                else:
+                    return False
+            case CommandLevels.SUBSCRIBER:
+                is_sub = message.user.subscriber or any(b in message.user.badges for b in ("subscriber", "founder"))
+                if is_sub:
+                    return True
+                else:
+                    return False
+            case CommandLevels.STREAMER:
+                if message.user.name == message.room.name:
+                    return True
+                else:
+                    return False
+            case CommandLevels.VIP:
+                is_vip = message.user.vip or "vip" in message.user.badges
+                if is_vip:
+                    return True
+                else:
+                    return False
+            case _:
+                raise ValueError("Invalid Command Level")
+
     # happens upon a message being sent
     async def on_message(self, msg: ChatMessage):
         assert msg.room
         print(f"in {msg.room.name}, {msg.user.name} said: {msg.text}")
         reply = await is_command_existing(msg.text, msg.room.name)
-        if reply and isinstance(reply, str):
-            await msg.reply(reply)
+        if reply and isinstance(reply, tuple) and self.__is_command_level_met(reply[1], msg):
+            await msg.reply(reply[0])
 
     # this will be called whenever someone subscribes to a channel
     # async def on_sub(sub: ChatSub):
