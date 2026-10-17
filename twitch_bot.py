@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from random import randint
 
 import aiosqlite
 from dotenv import load_dotenv
@@ -242,13 +243,35 @@ class SharkBot:
             case _:
                 raise ValueError("Invalid Command Level")
 
+    async def __deal_with_variables(self, message: str, msg: ChatMessage) -> str:
+        assert msg.room and self.twitch
+        if r"${user}" in message:
+            message = message.replace(r"${user}", msg.user.display_name)
+        if r"${game}" in message:
+            stream = await first(self.twitch.get_streams(user_id=[msg.room.room_id]))
+
+            if stream:
+                game = stream.game_name
+            else:
+                channel_info = await self.twitch.get_channel_information(broadcaster_id=msg.room.room_id)
+                game = channel_info[0].game_name
+
+            message = message.replace(r"${game}", game)
+        if r"${random}" in message:
+            number = randint(0, 300)
+            message = message.replace(r"${random}", str(number))
+        return message
+
     # happens upon a message being sent
     async def on_message(self, msg: ChatMessage):
         assert msg.room
-        print(f"in {msg.room.name}, {msg.user.name} said: {msg.text}")
-        reply = await is_command_existing(msg.text, msg.room.name)
-        if reply and isinstance(reply, tuple) and self.__is_command_level_met(reply[1], msg):
-            await msg.reply(reply[0])
+        result = await is_command_existing(msg.text, msg.room.name)
+        if isinstance(result, bool):
+            return
+        reply, level = result
+        if reply and self.__is_command_level_met(level, msg):
+            reply = await self.__deal_with_variables(reply, msg)
+            await msg.reply(reply)
 
     # this will be called whenever someone subscribes to a channel
     # async def on_sub(sub: ChatSub):
