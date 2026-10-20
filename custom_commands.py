@@ -53,7 +53,7 @@ async def check_for_command(command_name: str, channel: str) -> tuple[str, Comma
         ) as cur:
             reply = await cur.fetchone()
             if reply:
-                return reply[0], CommandLevels(reply[1].lower())
+                return reply[0], CommandLevels.parse(reply[1].lower())
     return False
 
 
