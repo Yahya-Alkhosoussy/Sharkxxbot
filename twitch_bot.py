@@ -212,36 +212,22 @@ class SharkBot:
         elif reward.title == "VIP":
             await deal_with_VIP(twitch_name, twitch_id)
 
-    def __is_command_level_met(self, command_level: CommandLevels, message: ChatMessage) -> bool:
+    def __get_user_roles(self, message: ChatMessage) -> CommandLevels:
         assert message.room
-        match command_level:
-            case CommandLevels.EVERYONE:
-                return True
-            case CommandLevels.MOD:
-                is_mod = message.user.mod or any(b in message.user.badges for b in ("moderator", "broadcaster"))
-                if is_mod:
-                    return True
-                else:
-                    return False
-            case CommandLevels.SUBSCRIBER:
-                is_sub = message.user.subscriber or any(b in message.user.badges for b in ("subscriber", "founder"))
-                if is_sub:
-                    return True
-                else:
-                    return False
-            case CommandLevels.STREAMER:
-                if message.user.name == message.room.name:
-                    return True
-                else:
-                    return False
-            case CommandLevels.VIP:
-                is_vip = message.user.vip or "vip" in message.user.badges
-                if is_vip:
-                    return True
-                else:
-                    return False
-            case _:
-                raise ValueError("Invalid Command Level")
+        user = message.user
+        badge = user.badges
+
+        roles = CommandLevels.EVERYONE
+        if user.subscriber or any(b in badge for b in ("subscriber", "founder")):
+            roles |= CommandLevels.SUBSCRIBER
+        if user.vip or "vip" in badge:
+            roles |= CommandLevels.VIP
+        if user.mod or any(b in badge for b in ("moderator", "broadcaster")):
+            roles |= CommandLevels.MOD
+        if "broadcaster" in badge:
+            roles |= CommandLevels.STREAMER
+
+        return roles
 
     async def __deal_with_variables(self, message: str, msg: ChatMessage) -> str:
         assert msg.room and self.twitch
@@ -269,7 +255,8 @@ class SharkBot:
         if isinstance(result, bool):
             return
         reply, level = result
-        if reply and self.__is_command_level_met(level, msg):
+        user_level = self.__get_user_roles(msg)
+        if reply and level.allows(user_level):
             reply = await self.__deal_with_variables(reply, msg)
             await msg.reply(reply)
 
